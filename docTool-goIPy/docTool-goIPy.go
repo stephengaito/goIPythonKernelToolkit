@@ -36,14 +36,19 @@ func main() {
     ),
   )
 
-  os.MkdirAll("docs/content", 0755)
-  os.MkdirAll("docs/html",    0755)
+  os.MkdirAll("docs", 0755)
+  os.MkdirAll("tmp/html/goIPythonKernelToolkit/html",    0755)
   
-  err := filepath.Walk("docs/content", func(path string, info os.FileInfo, err error) error {
+  err := filepath.Walk("docs", func(path string, info os.FileInfo, err error) error {
     if err != nil { return err }
     if strings.HasSuffix(path, ".md") {
     
-      htmlPath := strings.Replace(path, "docs/content", "docs/html", 1)
+      htmlPath := strings.Replace(
+        path,
+        "docs/",
+        "tmp/html/goIPythonKernelToolkit/html/",
+        1,
+      )
       htmlPath =  strings.Replace(htmlPath, ".md", ".html", 1)
       fmt.Printf("converting [%s] to [%s]\n", path, htmlPath)
       

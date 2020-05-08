@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# This bash script installs a given goIPy kernel for the local user 
+
+if [ "$#" -ne 1 ]; then
+  echo "usage: installGoIPyKernel <name of kernel>"
+  exit -1
+fi
+
+KERNEL_NAME=$1
+SOURCE_KERNEL_DIR=kernels/$KERNEL_NAME
+INSTALL_KERNEL_DIR=$HOME/.local/share/jupyter/kernels/$KERNEL_NAME
+
+# go get -d -u github.com/stephengaito/goIPythonKernelToolkit/kernels/$KERNEL_NAME
+
+pushd $SOURCE_KERNEL_DIR
+echo go install
+go install
+popd
+
+mkdir -p $INSTALL_KERNEL_DIR
+cp $SOURCE_KERNEL_DIR/kernel/* $INSTALL_KERNEL_DIR
+pushd $INSTALL_KERNEL_DIR
+chmod u+w ./kernel.json
+sed "s|$KERNEL_NAME|$(go env GOBIN)/$KERNEL_NAME|" < kernel.json.in > kernel.json
+popd
+

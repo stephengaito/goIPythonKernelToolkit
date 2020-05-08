@@ -1,5 +1,5 @@
 *.swp
-docs/html
+tmp
 
 # Binaries for programs and plugins
 *.exe
