@@ -25,6 +25,9 @@ The following files in this directory:
 
   CONTRIBUTORS.gophernotes
   README.md
+  compiler_version.go
+  complete.go
+  display.go
   examples/Display.ipynb
   examples/Facial_Recognition_MachineBox.ipynb
   examples/Matrix_Operations.ipynb
@@ -34,13 +37,17 @@ The following files in this directory:
   files/jupyter.gif
   files/nteract.gif
   fixtures/connection_file.json
+  image.go
   imports/README.md
   imports/a_package.go
   kernel/kernel.json
   kernel/kernel.json.in
   kernel/logo-32x32.png
   kernel/logo-64x64.png
+  kernel.go
+  kernel_test.go
   main.go
+  messages.go
   x_package.go
 
 while now heavily modified, were originally taken from 

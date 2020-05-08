@@ -1,4 +1,4 @@
-package goIPyKernel
+package main
 
 import (
 	"context"

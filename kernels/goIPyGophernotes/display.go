@@ -1,4 +1,4 @@
-package goIPyKernel
+package main
 
 import (
 	"bytes"
@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+
+	basereflect "github.com/cosmos72/gomacro/base/reflect"
+	"github.com/cosmos72/gomacro/xreflect"
 )
 
 // Support an interface similar - but not identical - to the IPython (canonical Jupyter kernel).

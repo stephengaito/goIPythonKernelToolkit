@@ -1,6 +1,7 @@
-package goIPyKernel
+package main
 
 import (
+	interp "github.com/cosmos72/gomacro/fast"
 )
 
 type Completion struct {

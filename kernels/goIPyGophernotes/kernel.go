@@ -1,4 +1,4 @@
-package goIPyKernel
+package main
 
 import (
 	"context"
@@ -19,6 +19,15 @@ import (
 
 	"github.com/go-zeromq/zmq4"
 	"golang.org/x/xerrors"
+
+	"github.com/cosmos72/gomacro/ast2"
+	"github.com/cosmos72/gomacro/base"
+	basereflect "github.com/cosmos72/gomacro/base/reflect"
+	interp "github.com/cosmos72/gomacro/fast"
+	"github.com/cosmos72/gomacro/xreflect"
+
+	// compile and link files generated in imports/
+	_ "github.com/gopherdata/gophernotes/imports"
 )
 
 // ExecCounter is incremented each time we run user code in the notebook.
