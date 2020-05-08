@@ -1,4 +1,5 @@
 *.swp
+docs/html
 
 # Binaries for programs and plugins
 *.exe
