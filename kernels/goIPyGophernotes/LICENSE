@@ -21,15 +21,29 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
-The files in the:
+The following files in this directory:
 
-  goIPyKernel
+  CONTRIBUTORS.gophernotes
+  README.md
+  examples/Display.ipynb
+  examples/Facial_Recognition_MachineBox.ipynb
+  examples/Matrix_Operations.ipynb
+  examples/Worker_Pools.ipynb
+  files/gophernotes-gopher.png
+  files/gophernotes-logo.png
+  files/jupyter.gif
+  files/nteract.gif
+  fixtures/connection_file.json
+  imports/README.md
+  imports/a_package.go
+  kernel/kernel.json
+  kernel/kernel.json.in
+  kernel/logo-32x32.png
+  kernel/logo-64x64.png
+  main.go
+  x_package.go
 
-and 
-
-  kernels/goIPyGophernotes
-
-directories, while now heavily modified, were originally taken from 
+while now heavily modified, were originally taken from 
 
   https://github.com/gopherdata/gophernotes.git
 
@@ -59,5 +73,3 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ------------------------------------------------------------------------------
-
-(See the LICENSE file in those directories for details)
