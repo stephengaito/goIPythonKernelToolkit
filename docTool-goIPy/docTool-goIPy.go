@@ -20,9 +20,12 @@ import (
    "io/ioutil"
    "os"
    "path/filepath"
+   "regexp"
    "strings"
 )
 func main() {
+
+  md2htmlRegexp := regexp.MustCompile("\\.md\\)")
 
   md := goldmark.New(
     goldmark.WithExtensions(extension.GFM),
@@ -52,11 +55,12 @@ func main() {
       htmlPath =  strings.Replace(htmlPath, ".md", ".html", 1)
       fmt.Printf("converting [%s] to [%s]\n", path, htmlPath)
       
-      fileBytes, err := ioutil.ReadFile(path)
+      mdFileBytes, err := ioutil.ReadFile(path)
       if err != nil { return err }
+      htmlFileBytes    := md2htmlRegexp.ReplaceAll(mdFileBytes, []byte(".html)"))
       
       var buf bytes.Buffer
-      err = md.Convert(fileBytes, &buf)
+      err = md.Convert(htmlFileBytes, &buf)
       if err != nil { return err }
       
       err = ioutil.WriteFile(htmlPath, buf.Bytes(), 0644)
