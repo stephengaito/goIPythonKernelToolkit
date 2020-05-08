@@ -38,7 +38,7 @@ const (
  * Supports multiple MIME formats.
  *
  * Note that Data defined above is an alias:
- * libraries can implement Renderer without importing gophernotes
+ * libraries can implement Renderer without importing goIPyGophernotes
  */
 type Renderer = interface {
 	Render() Data
@@ -50,7 +50,7 @@ type Renderer = interface {
  * Supports multiple MIME formats.
  *
  * Note that MIMEMap defined above is an alias:
- * libraries can implement SimpleRenderer without importing gophernotes
+ * libraries can implement SimpleRenderer without importing goIPyGophernotes
  */
 type SimpleRenderer = interface {
 	SimpleRender() MIMEMap
@@ -61,7 +61,7 @@ type SimpleRenderer = interface {
  *
  * They are type aliases to emphasize that method signatures
  * are the only important thing, not the interface names.
- * Thus libraries can implement them without importing gophernotes
+ * Thus libraries can implement them without importing goIPyGophernotes
  */
 type HTMLer = interface {
 	HTML() string

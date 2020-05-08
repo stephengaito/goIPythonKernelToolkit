@@ -4,4 +4,4 @@
 
 package main
 
-var _ int = "error: Go >= 1.11 required to compile Gophernotes"
+var _ int = "error: Go >= 1.11 required to compile goIPyGophernotes"

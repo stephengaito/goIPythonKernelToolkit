@@ -7,7 +7,7 @@ import (
 
 const (
 
-	// Version defines the gophernotes version.
+	// Version defines the goIPyGophernotes version.
 	Version string = "1.0.0"
 
 	// ProtocolVersion defines the Jupyter protocol version.

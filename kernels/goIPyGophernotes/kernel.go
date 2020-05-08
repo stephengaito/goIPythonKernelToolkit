@@ -27,7 +27,7 @@ import (
 	"github.com/cosmos72/gomacro/xreflect"
 
 	// compile and link files generated in imports/
-	_ "github.com/gopherdata/gophernotes/imports"
+	_ "github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes/imports"
 )
 
 // ExecCounter is incremented each time we run user code in the notebook.
@@ -347,9 +347,9 @@ func sendKernelInfo(receipt msgReceipt) error {
 	return receipt.Reply("kernel_info_reply",
 		kernelInfo{
 			ProtocolVersion:       ProtocolVersion,
-			Implementation:        "gophernotes",
+			Implementation:        "goIPyGophernotes",
 			ImplementationVersion: Version,
-			Banner:                fmt.Sprintf("Go kernel: gophernotes - v%s", Version),
+			Banner:                fmt.Sprintf("Go kernel: goIPyGophernotes - v%s", Version),
 			LanguageInfo: kernelLanguageInfo{
 				Name:          "go",
 				Version:       runtime.Version(),
@@ -357,7 +357,7 @@ func sendKernelInfo(receipt msgReceipt) error {
 			},
 			HelpLinks: []helpLink{
 				{Text: "Go", URL: "https://golang.org/"},
-				{Text: "gophernotes", URL: "https://github.com/gopherdata/gophernotes"},
+				{Text: "goIPyGophernotes", URL: "https://github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes"},
 			},
 		},
 	)

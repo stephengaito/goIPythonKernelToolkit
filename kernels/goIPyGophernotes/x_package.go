@@ -189,8 +189,8 @@ func (P *proxy_image_Image) ColorModel() color.Model {
 }
 
 // --------------------------------------------------------
-// allow importing "display" and "github.com/gopherdata/gophernotes" packages
+// allow importing "display" and "github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes" packages
 func init() {
 	imports.Packages["display"] = display
-	imports.Packages["github.com/gopherdata/gophernotes"] = display
+	imports.Packages["github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes"] = display
 }

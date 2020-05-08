@@ -1,5 +1,5 @@
 The command `import` will write here import files for third-party
-packages if they are to be imported and statically linked into gophernotes.
+packages if they are to be imported and statically linked into goIPyGophernotes.
 
 This is currently needed on Windows, *BSD, Android etc. (to be exact,
 as of Go 1.13 it's needed on all operating system except Linux and Mac OS X).
