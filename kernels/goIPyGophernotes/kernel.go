@@ -3,48 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
-//	"errors"
 	"fmt"
-//	"go/ast"
-//	"io"
+  "io"
 	"io/ioutil"
 	"log"
 	"os"
-//	"os/exec"
-//	"reflect"
-//	"runtime"
-//	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-zeromq/zmq4"
 	"golang.org/x/xerrors"
-
-//	"github.com/cosmos72/gomacro/ast2"
-//	"github.com/cosmos72/gomacro/base"
-//	basereflect "github.com/cosmos72/gomacro/base/reflect"
-//	interp "github.com/cosmos72/gomacro/fast"
-//	"github.com/cosmos72/gomacro/xreflect"
-
-	// compile and link files generated in imports/
-	_ "github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes/imports"
 )
-
-type InterpreterImpl interface {
-
-  // SendKernelInfo sends a kernel_info_reply message.
-  //
-  SendKernelInfo(receipt msgReceipt) error
-  
-  // HandleExecuteRequest runs code from an execute_request method,
-  // and sends the various reply messages.
-  //
-  HandleExecuteRequest(receipt msgReceipt) error
-  
-  // Get the possible completions for the word at cursorPos in the code. 
-  //
-  GetCodeWordCompletions(code string, cursorPos int) (int, int, []string)
-}
 
 // SHOULD MOVE TO ADAPTOR?
 //
@@ -120,7 +89,43 @@ const (
 	kernelIdle     = "idle"
 )
 
-// RunWithSocket invokes the `run` function after acquiring the `Socket.Lock` and releases the lock when done.
+type InterpreterImpl interface {
+
+  // GetKernelInfo returns the KernelInfo for this kernel implementation.
+  //
+  GetKernelInfo() kernelInfo
+  
+  // Get the possible completions for the word at cursorPos in the code. 
+  //
+  GetCodeWordCompletions(code string, cursorPos int) (int, int, []string)
+
+  // Setup the Display callback by recording the msgReceipt information
+  // for later use by what ever callback implements the "Display" function. 
+  //
+  SetupDisplayCallback(receipt msgReceipt)
+  
+  // Teardown the Display callback by removing the current msgReceipt
+  // information and setting things back to what ever default the 
+  // implementation uses.
+  //
+  TeardownDisplayCallback()
+  
+  // Evaluate (and remove) any implmenation specific special commands BEFORE 
+  // the code gets evaluated by the interpreter. The `outErr` variable 
+  // contains the stdOut and stdErr which can be used to capture the stdOut 
+  // and stdErr of any external commands run by these special commands. 
+  //
+  EvaluateRemoveSpecialCommands(outErr OutErr, code string) string
+
+  // Evaluate the code and return the results as a Data object.
+  //
+  EvaluateCode(code string) (rtnData Data, err error)
+
+}
+
+// RunWithSocket invokes the `run` function after acquiring the 
+// `Socket.Lock` and releases the lock when done. 
+//
 func (s *Socket) RunWithSocket(run func(socket zmq4.Socket) error) error {
 	s.Lock.Lock()
 	defer s.Lock.Unlock()
@@ -148,14 +153,16 @@ func runKernel(kernel InterpreterImpl, connectionFile string) {
 		log.Fatal(err)
 	}
 
-	// TODO connect all channel handlers to a WaitGroup to ensure shutdown before returning from runKernel.
+  // TODO connect all channel handlers to a WaitGroup to ensure shutdown 
+  // before returning from runKernel. 
 
-	// Start up the heartbeat handler.
+  // Start up the heartbeat handler.
 	startHeartbeat(sockets.HBSocket, &sync.WaitGroup{})
 
-	// TODO gracefully shutdown the heartbeat handler on kernel shutdown by closing the chan returned by startHeartbeat.
+  // TODO gracefully shutdown the heartbeat handler on kernel shutdown by 
+  // closing the chan returned by startHeartbeat. 
 
-	type msgType struct {
+  type msgType struct {
 		Msg zmq4.Msg
 		Err error
 	}
@@ -233,28 +240,38 @@ func prepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
 		ctx = context.Background()
 	)
 
-	// Create the shell socket, a request-reply socket that may receive messages from multiple frontend for
-	// code execution, introspection, auto-completion, etc.
-	sg.ShellSocket.Socket = zmq4.NewRouter(ctx)
+  // Create the shell socket, a request-reply socket that may receive 
+  // messages from multiple frontend for code execution, introspection, 
+  // auto-completion, etc. 
+  //
+  sg.ShellSocket.Socket = zmq4.NewRouter(ctx)
 	sg.ShellSocket.Lock = &sync.Mutex{}
 
-	// Create the control socket. This socket is a duplicate of the shell socket where messages on this channel
-	// should jump ahead of queued messages on the shell socket.
+  // Create the control socket. This socket is a duplicate of the shell 
+  // socket where messages on this channel should jump ahead of queued 
+  // messages on the shell socket. 
+  //
 	sg.ControlSocket.Socket = zmq4.NewRouter(ctx)
 	sg.ControlSocket.Lock = &sync.Mutex{}
 
-	// Create the stdin socket, a request-reply socket used to request user input from a front-end. This is analogous
-	// to a standard input stream.
+  // Create the stdin socket, a request-reply socket used to request user 
+  // input from a front-end. This is analogous to a standard input stream. 
+  //
 	sg.StdinSocket.Socket = zmq4.NewRouter(ctx)
 	sg.StdinSocket.Lock = &sync.Mutex{}
 
-	// Create the iopub socket, a publisher for broadcasting data like stdout/stderr output, displaying execution
-	// results or errors, kernel status, etc. to connected subscribers.
+  // Create the iopub socket, a publisher for broadcasting data like 
+  // stdout/stderr output, displaying execution results or errors, kernel 
+  // status, etc. to connected subscribers. 
+  //
 	sg.IOPubSocket.Socket = zmq4.NewPub(ctx)
 	sg.IOPubSocket.Lock = &sync.Mutex{}
 
-	// Create the heartbeat socket, a request-reply socket that only allows alternating recv-send (request-reply)
-	// calls. It should echo the byte strings it receives to let the requester know the kernel is still alive.
+  // Create the heartbeat socket, a request-reply socket that only allows 
+  // alternating recv-send (request-reply) calls. It should echo the byte 
+  // strings it receives to let the requester know the kernel is still 
+  // alive. 
+  //
 	sg.HBSocket.Socket = zmq4.NewRep(ctx)
 	sg.HBSocket.Lock = &sync.Mutex{}
 
@@ -306,7 +323,7 @@ func handleShellMsg(receipt msgReceipt, kernel InterpreterImpl) {
 
 	switch receipt.Msg.Header.MsgType {
 	case "kernel_info_request":
-		if err := kernel.SendKernelInfo(receipt); err != nil {
+		if err := handleKernelInfoRequest(kernel, receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "complete_request":
@@ -314,7 +331,7 @@ func handleShellMsg(receipt msgReceipt, kernel InterpreterImpl) {
 			log.Fatal(err)
 		}
 	case "execute_request":
-		if err := kernel.HandleExecuteRequest(receipt); err != nil {
+		if err := handleExecuteRequest(kernel, receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "shutdown_request":
@@ -322,6 +339,13 @@ func handleShellMsg(receipt msgReceipt, kernel InterpreterImpl) {
 	default:
 		log.Println("Unhandled shell message: ", receipt.Msg.Header.MsgType)
 	}
+}
+
+func handleKernelInfoRequest(kernel InterpreterImpl, receipt msgReceipt) error {
+	return receipt.Reply(
+    "kernel_info_reply",
+    kernel.GetKernelInfo(),
+  )
 }
 
 func handleCompleteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
@@ -350,6 +374,111 @@ func handleCompleteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
 	}
 
 	return receipt.Reply("complete_reply", content)
+}
+
+// handleExecuteRequest runs code from an execute_request method,
+// and sends the various reply messages.
+func handleExecuteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
+
+	// Extract the data from the request.
+	reqcontent := receipt.Msg.Content.(map[string]interface{})
+	code := reqcontent["code"].(string)
+	silent := reqcontent["silent"].(bool)
+
+	if !silent {
+		ExecCounter++
+	}
+
+	// Prepare the map that will hold the reply content.
+	content := make(map[string]interface{})
+	content["execution_count"] = ExecCounter
+
+	// Tell the front-end what the kernel is about to execute.
+	if err := receipt.PublishExecutionInput(ExecCounter, code); err != nil {
+		log.Printf("Error publishing execution input: %v\n", err)
+	}
+
+	// Redirect the standard out from the REPL.
+	oldStdout := os.Stdout
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	os.Stdout = wOut
+
+	// Redirect the standard error from the REPL.
+	oldStderr := os.Stderr
+	rErr, wErr, err := os.Pipe()
+	if err != nil {
+		return err
+	}
+	os.Stderr = wErr
+
+	var writersWG sync.WaitGroup
+	writersWG.Add(2)
+
+	jupyterStdOut := JupyterStreamWriter{StreamStdout, &receipt}
+	jupyterStdErr := JupyterStreamWriter{StreamStderr, &receipt}
+	outerr := OutErr{&jupyterStdOut, &jupyterStdErr}
+
+	// Forward all data written to stdout/stderr to the front-end.
+	go func() {
+		defer writersWG.Done()
+		io.Copy(&jupyterStdOut, rOut)
+	}()
+
+	go func() {
+		defer writersWG.Done()
+		io.Copy(&jupyterStdErr, rErr)
+	}()
+
+  kernel.SetupDisplayCallback(receipt)
+  defer kernel.TeardownDisplayCallback()
+  
+  // evaluate and remove any special commands
+  code = kernel.EvaluateRemoveSpecialCommands(outerr, code)
+  
+	// eval
+	data, executionErr := kernel.EvaluateCode(code)
+
+	// Close and restore the streams.
+	wOut.Close()
+	os.Stdout = oldStdout
+
+	wErr.Close()
+	os.Stderr = oldStderr
+
+	// Wait for the writers to finish forwarding the data.
+	writersWG.Wait()
+
+	if executionErr == nil {
+		// if the only non-nil value should be auto-rendered graphically, render it
+
+		content["status"] = "ok"
+		content["user_expressions"] = make(map[string]string)
+
+		if !silent && len(data.Data) != 0 {
+			// Publish the result of the execution.
+			if err := receipt.PublishExecutionResult(ExecCounter, data); err != nil {
+				log.Printf("Error publishing execution result: %v\n", err)
+			}
+		}
+	} else {
+		content["status"] = "error"
+		content["ename"] = "ERROR"
+		content["evalue"] = executionErr.Error()
+		content["traceback"] = nil
+
+		if err := receipt.PublishExecutionError(
+      executionErr.Error(),
+      []string{executionErr.Error()},
+    ); err != nil {
+			log.Printf("Error publishing execution error: %v\n", err)
+		}
+	}
+
+	// Send the output back to the notebook.
+	return receipt.Reply("execute_reply", content)
 }
 
 // handleShutdownRequest sends a "shutdown" message.
