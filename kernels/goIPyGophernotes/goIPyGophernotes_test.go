@@ -10,6 +10,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+  
+  tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
+  "github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes/goIPyGoMacroAdaptor"
 
 	"github.com/go-zeromq/zmq4"
 )
@@ -42,7 +45,7 @@ func TestMain(m *testing.M) {
 // the proper exit if the test fails or succeeds.
 func runTest(m *testing.M) int {
 	// Parse the connection info.
-	var connInfo ConnectionInfo
+	var connInfo tk.ConnectionInfo
 
 	connData, err := ioutil.ReadFile(connectionFile)
 	if err != nil {
@@ -61,8 +64,8 @@ func runTest(m *testing.M) int {
 	iopubPort = connInfo.IOPubPort
 
 	// Start the kernel.
-  adaptor := NewGoAdaptor()
-  kernel  := NewIPyKernel(adaptor)
+  adaptor := goIPyGoMacroAdaptor.NewGoAdaptor()
+  kernel  := tk.NewIPyKernel(adaptor)
 	go kernel.Run(connectionFile)
 
 	return m.Run()
@@ -376,7 +379,7 @@ func newTestJupyterClient(t *testing.T) (testJupyterClient, func()) {
 
 // sendShellRequest sends a message to the kernel over the shell channel. Upon error, sendShellRequest
 // will Fail the test.
-func (client *testJupyterClient) sendShellRequest(t *testing.T, request ComposedMsg) {
+func (client *testJupyterClient) sendShellRequest(t *testing.T, request tk.ComposedMsg) {
 	t.Helper()
 
 	var (
@@ -399,10 +402,10 @@ func (client *testJupyterClient) sendShellRequest(t *testing.T, request Composed
 
 // recvShellReply tries to read a reply message from the shell channel. It will timeout after the given
 // timeout delay. Upon error or timeout, recvShellReply will Fail the test.
-func (client *testJupyterClient) recvShellReply(t *testing.T, timeout time.Duration) ComposedMsg {
+func (client *testJupyterClient) recvShellReply(t *testing.T, timeout time.Duration) tk.ComposedMsg {
 	t.Helper()
 
-	ch := make(chan ComposedMsg)
+	ch := make(chan tk.ComposedMsg)
 
 	go func() {
 		repMsgParts, err := client.shellSocket.Recv()
@@ -410,7 +413,7 @@ func (client *testJupyterClient) recvShellReply(t *testing.T, timeout time.Durat
 			t.Fatalf("\t%s Shell socket RecvMessageBytes: %s", failure, err)
 		}
 
-		msgParsed, _, err := WireMsgToComposedMsg(repMsgParts.Frames, []byte(connectionKey))
+		msgParsed, _, err := tk.WireMsgToComposedMsg(repMsgParts.Frames, []byte(connectionKey))
 		if err != nil {
 			t.Fatalf("\t%s Could not parse wire message: %s", failure, err)
 		}
@@ -418,7 +421,7 @@ func (client *testJupyterClient) recvShellReply(t *testing.T, timeout time.Durat
 		ch <- msgParsed
 	}()
 
-	var reply ComposedMsg
+	var reply tk.ComposedMsg
 
 	select {
 	case reply = <-ch:
@@ -432,10 +435,10 @@ func (client *testJupyterClient) recvShellReply(t *testing.T, timeout time.Durat
 
 // recvIOSub tries to read a published message from the IOPub channel. It will timeout after the given
 // timeout delay. Upon error or timeout, recvIOSub will Fail the test.
-func (client *testJupyterClient) recvIOSub(t *testing.T, timeout time.Duration) ComposedMsg {
+func (client *testJupyterClient) recvIOSub(t *testing.T, timeout time.Duration) tk.ComposedMsg {
 	t.Helper()
 
-	ch := make(chan ComposedMsg)
+	ch := make(chan tk.ComposedMsg)
 
 	go func() {
 		repMsgParts, err := client.ioSocket.Recv()
@@ -443,7 +446,7 @@ func (client *testJupyterClient) recvIOSub(t *testing.T, timeout time.Duration) 
 			t.Fatalf("\t%s IOPub socket RecvMessageBytes: %s", failure, err)
 		}
 
-		msgParsed, _, err := WireMsgToComposedMsg(repMsgParts.Frames, []byte(connectionKey))
+		msgParsed, _, err := tk.WireMsgToComposedMsg(repMsgParts.Frames, []byte(connectionKey))
 		if err != nil {
 			t.Fatalf("\t%s Could not parse wire message: %s", failure, err)
 		}
@@ -451,7 +454,7 @@ func (client *testJupyterClient) recvIOSub(t *testing.T, timeout time.Duration) 
 		ch <- msgParsed
 	}()
 
-	var sub ComposedMsg
+	var sub tk.ComposedMsg
 	select {
 	case sub = <-ch:
 	case <-time.After(timeout):
@@ -464,7 +467,7 @@ func (client *testJupyterClient) recvIOSub(t *testing.T, timeout time.Duration) 
 // performJupyterRequest preforms a request and awaits a reply on the shell channel. Additionally all messages on the
 // IOPub channel between the opening 'busy' messages and closing 'idle' message are captured and returned. The request
 // will timeout after the given timeout delay. Upon error or timeout, request will Fail the test.
-func (client *testJupyterClient) performJupyterRequest(t *testing.T, request ComposedMsg, timeout time.Duration) (ComposedMsg, []ComposedMsg) {
+func (client *testJupyterClient) performJupyterRequest(t *testing.T, request tk.ComposedMsg, timeout time.Duration) (tk.ComposedMsg, []tk.ComposedMsg) {
 	t.Helper()
 
 	client.sendShellRequest(t, request)
@@ -477,11 +480,11 @@ func (client *testJupyterClient) performJupyterRequest(t *testing.T, request Com
 	subData := getMsgContentAsJSONObject(t, subMsg)
 	execState := getString(t, "content", subData, "execution_state")
 
-	if execState != KernelBusy {
+	if execState != tk.KernelBusy {
 		t.Fatalf("\t%s Expected a 'busy' status message but got '%s'", failure, execState)
 	}
 
-	var pub []ComposedMsg
+	var pub []tk.ComposedMsg
 
 	// Read messages from the IOPub channel until an 'idle' message is received.
 	for {
@@ -492,7 +495,7 @@ func (client *testJupyterClient) performJupyterRequest(t *testing.T, request Com
 			subData = getMsgContentAsJSONObject(t, subMsg)
 			execState = getString(t, "content", subData, "execution_state")
 
-			if execState != KernelIdle {
+			if execState != tk.KernelIdle {
 				t.Fatalf("\t%s Expected a 'idle' status message but got '%s'", failure, execState)
 			}
 
@@ -509,11 +512,11 @@ func (client *testJupyterClient) performJupyterRequest(t *testing.T, request Com
 
 // executeCode creates an execute request for the given code and preforms the request. It returns the content of the
 // reply as well as all of the messages captured from the IOPub channel during the execution.
-func (client *testJupyterClient) executeCode(t *testing.T, code string) (map[string]interface{}, []ComposedMsg) {
+func (client *testJupyterClient) executeCode(t *testing.T, code string) (map[string]interface{}, []tk.ComposedMsg) {
 	t.Helper()
 
 	// Create a message.
-	request, err := NewMsg("execute_request", ComposedMsg{})
+	request, err := tk.NewMsg("execute_request", tk.ComposedMsg{})
 	if err != nil {
 		t.Fatalf("\t%s NewMsg: %s", failure, err)
 	}
@@ -543,7 +546,7 @@ func (client *testJupyterClient) executeCode(t *testing.T, code string) (map[str
 
 // assertMsgTypeEquals is a test helper that fails the test if the message header's MsgType is not the
 // expectedType.
-func assertMsgTypeEquals(t *testing.T, msg ComposedMsg, expectedType string) {
+func assertMsgTypeEquals(t *testing.T, msg tk.ComposedMsg, expectedType string) {
 	t.Helper()
 
 	if msg.Header.MsgType != expectedType {
@@ -553,7 +556,7 @@ func assertMsgTypeEquals(t *testing.T, msg ComposedMsg, expectedType string) {
 
 // getMsgContentAsJSONObject is a test helper that fails the rest if the message content is not a
 // map[string]interface{} and returns the content as a map[string]interface{} if it is of the correct type.
-func getMsgContentAsJSONObject(t *testing.T, msg ComposedMsg) map[string]interface{} {
+func getMsgContentAsJSONObject(t *testing.T, msg tk.ComposedMsg) map[string]interface{} {
 	t.Helper()
 
 	content, ok := msg.Content.(map[string]interface{})
@@ -619,9 +622,9 @@ func testOutputStream(t *testing.T, codeIn string) ([]string, []string) {
 			streamData := getString(t, "content", content, "text")
 
 			switch streamType {
-			case StreamStdout:
+			case tk.StreamStdout:
 				stdout = append(stdout, streamData)
-			case StreamStderr:
+			case tk.StreamStderr:
 				stderr = append(stderr, streamData)
 			default:
 				t.Fatalf("Unknown stream type '%s'", streamType)
