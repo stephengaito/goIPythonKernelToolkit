@@ -22,8 +22,8 @@ func main() {
 		log.Fatalln("Need a command line argument specifying the connection file.")
 	}
 
-  kernel := newGoInterpreter()
+  interp := newGoInterpreter()
   
 	// Run the kernel.
-	runKernel(kernel, flag.Arg(0))
+	runKernel(interp, flag.Arg(0))
 }

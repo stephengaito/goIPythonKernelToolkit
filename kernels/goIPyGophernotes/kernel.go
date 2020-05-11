@@ -133,7 +133,7 @@ func (s *Socket) RunWithSocket(run func(socket zmq4.Socket) error) error {
 }
 
 // runKernel is the main entry point to start the kernel.
-func runKernel(kernel InterpreterImpl, connectionFile string) {
+func runKernel(interp InterpreterImpl, connectionFile string) {
 
 	// Parse the connection info.
 	var connInfo ConnectionInfo
@@ -207,7 +207,7 @@ func runKernel(kernel InterpreterImpl, connectionFile string) {
 				return
 			}
 
-			handleShellMsg(msgReceipt{msg, ids, sockets}, kernel)
+			handleShellMsg(msgReceipt{msg, ids, sockets}, interp)
 
 		case <-stdin:
 			// TODO Handle stdin socket.
@@ -225,7 +225,7 @@ func runKernel(kernel InterpreterImpl, connectionFile string) {
 				return
 			}
 
-			handleShellMsg(msgReceipt{msg, ids, sockets}, kernel)
+			handleShellMsg(msgReceipt{msg, ids, sockets}, interp)
 		}
 	}
 }
@@ -309,7 +309,7 @@ func prepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
 }
 
 // handleShellMsg responds to a message on the shell ROUTER socket.
-func handleShellMsg(receipt msgReceipt, kernel InterpreterImpl) {
+func handleShellMsg(receipt msgReceipt, interp InterpreterImpl) {
 	// Tell the front-end that the kernel is working and when finished notify the
 	// front-end that the kernel is idle again.
 	if err := receipt.PublishKernelStatus(kernelBusy); err != nil {
@@ -323,15 +323,15 @@ func handleShellMsg(receipt msgReceipt, kernel InterpreterImpl) {
 
 	switch receipt.Msg.Header.MsgType {
 	case "kernel_info_request":
-		if err := handleKernelInfoRequest(kernel, receipt); err != nil {
+		if err := handleKernelInfoRequest(interp, receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "complete_request":
-		if err := handleCompleteRequest(kernel, receipt); err != nil {
+		if err := handleCompleteRequest(interp, receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "execute_request":
-		if err := handleExecuteRequest(kernel, receipt); err != nil {
+		if err := handleExecuteRequest(interp, receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "shutdown_request":
@@ -341,14 +341,14 @@ func handleShellMsg(receipt msgReceipt, kernel InterpreterImpl) {
 	}
 }
 
-func handleKernelInfoRequest(kernel InterpreterImpl, receipt msgReceipt) error {
+func handleKernelInfoRequest(interp InterpreterImpl, receipt msgReceipt) error {
 	return receipt.Reply(
     "kernel_info_reply",
-    kernel.GetKernelInfo(),
+    interp.GetKernelInfo(),
   )
 }
 
-func handleCompleteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
+func handleCompleteRequest(interp InterpreterImpl, receipt msgReceipt) error {
 	// Extract the data from the request.
 	reqcontent := receipt.Msg.Content.(map[string]interface{})
 	code := reqcontent["code"].(string)
@@ -356,7 +356,7 @@ func handleCompleteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
 
 	// autocomplete the code at the cursor position
   cursorStart, cursorEnd, matches := 
-    kernel.GetCodeWordCompletions(code, cursorPos)
+    interp.GetCodeWordCompletions(code, cursorPos)
   
 	// prepare the reply
 	content := make(map[string]interface{})
@@ -378,7 +378,7 @@ func handleCompleteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
 
 // handleExecuteRequest runs code from an execute_request method,
 // and sends the various reply messages.
-func handleExecuteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
+func handleExecuteRequest(interp InterpreterImpl, receipt msgReceipt) error {
 
 	// Extract the data from the request.
 	reqcontent := receipt.Msg.Content.(map[string]interface{})
@@ -432,14 +432,14 @@ func handleExecuteRequest(kernel InterpreterImpl, receipt msgReceipt) error {
 		io.Copy(&jupyterStdErr, rErr)
 	}()
 
-  kernel.SetupDisplayCallback(receipt)
-  defer kernel.TeardownDisplayCallback()
+  interp.SetupDisplayCallback(receipt)
+  defer interp.TeardownDisplayCallback()
   
   // evaluate and remove any special commands
-  code = kernel.EvaluateRemoveSpecialCommands(outerr, code)
+  code = interp.EvaluateRemoveSpecialCommands(outerr, code)
   
 	// eval
-	data, executionErr := kernel.EvaluateCode(code)
+	data, executionErr := interp.EvaluateCode(code)
 
 	// Close and restore the streams.
 	wOut.Close()

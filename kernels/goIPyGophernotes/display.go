@@ -99,11 +99,11 @@ func stubDisplay(Data) error {
 
 // fill kernel.renderer map used to convert interpreted types
 // to known rendering interfaces
-func (kernel *GoInterpreter) initRenderers() {
-	kernel.render = make(map[string]xreflect.Type)
-	for name, typ := range kernel.display.Types {
+func (interp *GoInterpreter) initRenderers() {
+	interp.render = make(map[string]xreflect.Type)
+	for name, typ := range interp.display.Types {
 		if typ.Kind() == reflect.Interface {
-			kernel.render[name] = typ
+			interp.render[name] = typ
 		}
 	}
 }
@@ -112,7 +112,7 @@ func (kernel *GoInterpreter) initRenderers() {
 // convert it to Data and return it.
 // otherwise return MakeData("text/plain", fmt.Sprint(vals...))
 //
-func (kernel *GoInterpreter) autoRenderResults(
+func (interp *GoInterpreter) autoRenderResults(
   vals []interface{},
   types []xreflect.Type,
 ) Data {
@@ -120,7 +120,7 @@ func (kernel *GoInterpreter) autoRenderResults(
 	var obj interface{}
 	var typ xreflect.Type
 	for i, val := range vals {
-		if kernel.canAutoRender(val, types[i]) {
+		if interp.canAutoRender(val, types[i]) {
 			obj = val
 			typ = types[i]
 		} else if val == nil {
@@ -128,7 +128,7 @@ func (kernel *GoInterpreter) autoRenderResults(
 		}
 	}
 	if obj != nil && nilcount == len(vals)-1 {
-		return kernel.autoRender("", obj, typ)
+		return interp.autoRender("", obj, typ)
 	}
 	if nilcount == len(vals) {
 		// if all values are nil, return empty Data
@@ -138,20 +138,20 @@ func (kernel *GoInterpreter) autoRenderResults(
 }
 
 // return true if data type should be auto-rendered graphically
-func (kernel *GoInterpreter) canAutoRender(data interface{}, typ xreflect.Type) bool {
+func (interp *GoInterpreter) canAutoRender(data interface{}, typ xreflect.Type) bool {
 	switch data.(type) {
 	case Data, Renderer, SimpleRenderer, HTMLer, JavaScripter, JPEGer, JSONer,
 		Latexer, Markdowner, PNGer, PDFer, SVGer, image.Image:
 		return true
 	}
-	if kernel == nil || typ == nil {
+	if interp == nil || typ == nil {
 		return false
 	}
 	// in gomacro, methods of interpreted types are emulated,
 	// thus type-asserting them to interface types as done above cannot succeed.
 	// Manually check if emulated type "pretends" to implement
 	// at least one of the interfaces above
-	for _, xtyp := range kernel.render {
+	for _, xtyp := range interp.render {
 		if typ.Implements(xtyp) {
 			return true
 		}
@@ -255,14 +255,14 @@ var autoRenderers = map[string]func(Data, interface{}) Data{
 }
 
 // detect and render data types that should be auto-rendered graphically
-func (kernel *GoInterpreter) autoRender(mimeType string, arg interface{}, typ xreflect.Type) Data {
+func (interp *GoInterpreter) autoRender(mimeType string, arg interface{}, typ xreflect.Type) Data {
 	var data Data
 	// try Data
 	if x, ok := arg.(Data); ok {
 		data = x
 	}
 
-	if kernel == nil || typ == nil {
+	if interp == nil || typ == nil {
 		// try all autoRenderers
 		for _, fun := range autoRenderers {
 			data = fun(data, arg)
@@ -275,12 +275,12 @@ func (kernel *GoInterpreter) autoRender(mimeType string, arg interface{}, typ xr
     // "pretends" to implement one or more of the above interfaces and, in 
     // case, tell the interpreter to convert to them 
     //
-    for name, xtyp := range kernel.render {
+    for name, xtyp := range interp.render {
 			fun := autoRenderers[name]
 			if fun == nil || !typ.Implements(xtyp) {
 				continue
 			}
-			conv := kernel.ir.Comp.Converter(typ, xtyp)
+			conv := interp.ir.Comp.Converter(typ, xtyp)
 			x := arg
 			if conv != nil {
 				x = basereflect.Interface(conv(reflect.ValueOf(x)))
@@ -326,9 +326,9 @@ func fillDefaults(data Data, arg interface{}, s string, b []byte, mimeType strin
 
 // do our best to render data graphically
 func render(mimeType string, data interface{}) Data {
-	var kernel *GoInterpreter // intentionally nil
-	if kernel.canAutoRender(data, nil) {
-		return kernel.autoRender(mimeType, data, nil)
+	var interp *GoInterpreter // intentionally nil
+	if interp.canAutoRender(data, nil) {
+		return interp.autoRender(mimeType, data, nil)
 	}
 	var s string
 	var b []byte

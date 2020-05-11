@@ -22,7 +22,7 @@ import(
 	"github.com/cosmos72/gomacro/ast2"
 	"github.com/cosmos72/gomacro/base"
 	basereflect "github.com/cosmos72/gomacro/base/reflect"
-	interp "github.com/cosmos72/gomacro/fast"
+	gomacro "github.com/cosmos72/gomacro/fast"
 	"github.com/cosmos72/gomacro/xreflect"
 
 	// compile and link files generated in imports/
@@ -30,8 +30,8 @@ import(
 )
 
 type GoInterpreter struct {
-	ir      *interp.Interp
-	display *interp.Import
+	ir      *gomacro.Interp
+	display *gomacro.Import
 	// map name -> HTMLer, JSONer, Renderer...
 	// used to convert interpreted types to one of these interfaces
 	render map[string]xreflect.Type
@@ -39,7 +39,7 @@ type GoInterpreter struct {
 
 func newGoInterpreter() *GoInterpreter {
 	// Create a new interpreter for evaluating notebook code.
-	ir := interp.New()
+	ir := gomacro.New()
 
 	// Throw out the error/warning messages that gomacro outputs writes to these streams.
 	ir.Comp.Stdout = ioutil.Discard
@@ -66,8 +66,8 @@ func newGoInterpreter() *GoInterpreter {
   return &interp
 }
 
-// sendKernelInfo sends a kernel_info_reply message.
-func (kernel *GoInterpreter) GetKernelInfo() kernelInfo {
+// GetKernelInfo sends a kernel_info_reply message.
+func (interp *GoInterpreter) GetKernelInfo() kernelInfo {
   return kernelInfo{
     ProtocolVersion:       ProtocolVersion,
     Implementation:        "goIPyGophernotes",
@@ -85,7 +85,7 @@ func (kernel *GoInterpreter) GetKernelInfo() kernelInfo {
   }
 }
 
-func (kernel *GoInterpreter) GetCodeWordCompletions(
+func (interp *GoInterpreter) GetCodeWordCompletions(
   code string,
   cursorPos int,
 ) (int, int, []string) {
@@ -93,23 +93,23 @@ func (kernel *GoInterpreter) GetCodeWordCompletions(
   // use the gomacro interpreter to find all matches to the word at the 
   // cursor. 
   //
-  prefix, matches, _ := kernel.ir.CompleteWords(code, cursorPos)
-	partialWord        := interp.TailIdentifier(prefix)
+  prefix, matches, _ := interp.ir.CompleteWords(code, cursorPos)
+	partialWord        := gomacro.TailIdentifier(prefix)
   curStart           := len(prefix) - len(partialWord)
   curEnd             := cursorPos
   return curStart, curEnd, matches
 }
 
-func (kernel *GoInterpreter) SetupDisplayCallback(receipt msgReceipt) {
+func (interp *GoInterpreter) SetupDisplayCallback(receipt msgReceipt) {
   // inject the actual "Display" closure that displays multimedia data in Jupyter
-	ir := kernel.ir
+	ir := interp.ir
 	displayPlace := ir.ValueOf("Display")
 	displayPlace.Set(reflect.ValueOf(receipt.PublishDisplayData))
 }
 
-func (kernel *GoInterpreter) TeardownDisplayCallback() {
+func (interp *GoInterpreter) TeardownDisplayCallback() {
 		// remove the closure before returning
-	ir := kernel.ir
+	ir := interp.ir
 	displayPlace := ir.ValueOf("Display")
   displayPlace.Set(reflect.ValueOf(stubDisplay))
 }
@@ -117,10 +117,10 @@ func (kernel *GoInterpreter) TeardownDisplayCallback() {
 // doEval evaluates the code in the interpreter. This function captures an 
 // uncaught panic as well as the values of the last statement/expression. 
 //
-func (kernel *GoInterpreter) EvaluateCode(
+func (interp *GoInterpreter) EvaluateCode(
   code string,
 ) (rtnData Data, err error) {
-  ir := kernel.ir
+  ir := interp.ir
   
   // Capture a panic from the evaluation if one occurs and store it in the 
   // `err` return parameter. 
@@ -204,7 +204,7 @@ func (kernel *GoInterpreter) EvaluateCode(
 		}
 
 		if nonNilCount > 0 {
-      data := kernel.autoRenderResults(values, types)
+      data := interp.autoRenderResults(values, types)
       return data, nil
 		}
 	}
@@ -215,11 +215,11 @@ func (kernel *GoInterpreter) EvaluateCode(
 // find and execute special commands in code, remove them from returned 
 // string 
 //
-func (kernel *GoInterpreter) EvaluateRemoveSpecialCommands(
+func (interp *GoInterpreter) EvaluateRemoveSpecialCommands(
   outerr OutErr,
   code string,
 ) string {
-  ir := kernel.ir
+  ir := interp.ir
   
 	lines := strings.Split(code, "\n")
 	stop := false
@@ -248,7 +248,7 @@ func (kernel *GoInterpreter) EvaluateRemoveSpecialCommands(
 
 // execute special command. line must start with '%'
 //
-func evalSpecialCommand(ir *interp.Interp, outerr OutErr, line string) {
+func evalSpecialCommand(ir *gomacro.Interp, outerr OutErr, line string) {
 	const help string = `
 available special commands (%):
 %help
@@ -283,7 +283,7 @@ $ls -l
 }
 
 // execute shell command. line must start with '$'
-func evalShellCommand(ir *interp.Interp, outerr OutErr, line string) {
+func evalShellCommand(ir *gomacro.Interp, outerr OutErr, line string) {
 	args := strings.Fields(line[1:])
 	if len(args) <= 0 {
 		return
