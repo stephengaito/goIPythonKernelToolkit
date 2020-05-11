@@ -22,8 +22,9 @@ func main() {
 		log.Fatalln("Need a command line argument specifying the connection file.")
 	}
 
-  interp := newGoInterpreter()
+  adaptor := NewGoAdaptor()
+  kernel  := NewIPyKernel(adaptor)
   
 	// Run the kernel.
-	runKernel(interp, flag.Arg(0))
+	kernel.Run(flag.Arg(0))
 }

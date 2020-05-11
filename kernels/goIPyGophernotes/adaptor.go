@@ -29,7 +29,7 @@ import(
 	_ "github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes/imports"
 )
 
-type GoInterpreter struct {
+type GoAdaptor struct {
 	ir      *gomacro.Interp
 	display *gomacro.Import
 	// map name -> HTMLer, JSONer, Renderer...
@@ -37,7 +37,7 @@ type GoInterpreter struct {
 	render map[string]xreflect.Type
 }
 
-func newGoInterpreter() *GoInterpreter {
+func NewGoAdaptor() *GoAdaptor {
 	// Create a new interpreter for evaluating notebook code.
 	ir := gomacro.New()
 
@@ -57,35 +57,35 @@ func newGoInterpreter() *GoInterpreter {
 	// its value to the closure that holds a reference to msgReceipt
 	ir.DeclVar("Display", nil, stubDisplay)
 
-  interp := GoInterpreter{
+  adaptor := GoAdaptor{
 		ir,
 		display,
 		nil,
 	}
-	interp.initRenderers()
-  return &interp
+	adaptor.initRenderers()
+  return &adaptor
 }
 
 // GetKernelInfo sends a kernel_info_reply message.
-func (interp *GoInterpreter) GetKernelInfo() kernelInfo {
-  return kernelInfo{
+func (adaptor *GoAdaptor) GetKernelInfo() KernelInfo {
+  return KernelInfo{
     ProtocolVersion:       ProtocolVersion,
     Implementation:        "goIPyGophernotes",
     ImplementationVersion: Version,
     Banner:                fmt.Sprintf("Go kernel: goIPyGophernotes - v%s", Version),
-    LanguageInfo: kernelLanguageInfo{
+    LanguageInfo:          KernelLanguageInfo{
       Name:          "go",
       Version:       runtime.Version(),
       FileExtension: ".go",
     },
-    HelpLinks: []helpLink{
+    HelpLinks: []HelpLink{
       {Text: "Go", URL: "https://golang.org/"},
       {Text: "goIPyGophernotes", URL: "https://github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes"},
     },
   }
 }
 
-func (interp *GoInterpreter) GetCodeWordCompletions(
+func (adaptor *GoAdaptor) GetCodeWordCompletions(
   code string,
   cursorPos int,
 ) (int, int, []string) {
@@ -93,23 +93,23 @@ func (interp *GoInterpreter) GetCodeWordCompletions(
   // use the gomacro interpreter to find all matches to the word at the 
   // cursor. 
   //
-  prefix, matches, _ := interp.ir.CompleteWords(code, cursorPos)
+  prefix, matches, _ := adaptor.ir.CompleteWords(code, cursorPos)
 	partialWord        := gomacro.TailIdentifier(prefix)
   curStart           := len(prefix) - len(partialWord)
   curEnd             := cursorPos
   return curStart, curEnd, matches
 }
 
-func (interp *GoInterpreter) SetupDisplayCallback(receipt msgReceipt) {
+func (adaptor *GoAdaptor) SetupDisplayCallback(receipt msgReceipt) {
   // inject the actual "Display" closure that displays multimedia data in Jupyter
-	ir := interp.ir
+	ir := adaptor.ir
 	displayPlace := ir.ValueOf("Display")
 	displayPlace.Set(reflect.ValueOf(receipt.PublishDisplayData))
 }
 
-func (interp *GoInterpreter) TeardownDisplayCallback() {
+func (adaptor *GoAdaptor) TeardownDisplayCallback() {
 		// remove the closure before returning
-	ir := interp.ir
+	ir := adaptor.ir
 	displayPlace := ir.ValueOf("Display")
   displayPlace.Set(reflect.ValueOf(stubDisplay))
 }
@@ -117,10 +117,10 @@ func (interp *GoInterpreter) TeardownDisplayCallback() {
 // doEval evaluates the code in the interpreter. This function captures an 
 // uncaught panic as well as the values of the last statement/expression. 
 //
-func (interp *GoInterpreter) EvaluateCode(
+func (adaptor *GoAdaptor) EvaluateCode(
   code string,
 ) (rtnData Data, err error) {
-  ir := interp.ir
+  ir := adaptor.ir
   
   // Capture a panic from the evaluation if one occurs and store it in the 
   // `err` return parameter. 
@@ -204,7 +204,7 @@ func (interp *GoInterpreter) EvaluateCode(
 		}
 
 		if nonNilCount > 0 {
-      data := interp.autoRenderResults(values, types)
+      data := adaptor.autoRenderResults(values, types)
       return data, nil
 		}
 	}
@@ -215,11 +215,11 @@ func (interp *GoInterpreter) EvaluateCode(
 // find and execute special commands in code, remove them from returned 
 // string 
 //
-func (interp *GoInterpreter) EvaluateRemoveSpecialCommands(
+func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
   outerr OutErr,
   code string,
 ) string {
-  ir := interp.ir
+  ir := adaptor.ir
   
 	lines := strings.Split(code, "\n")
 	stop := false

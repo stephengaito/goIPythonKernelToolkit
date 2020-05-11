@@ -52,7 +52,7 @@ type SocketGroup struct {
 }
 
 // KernelLanguageInfo holds information about the language that this kernel executes code in.
-type kernelLanguageInfo struct {
+type KernelLanguageInfo struct {
 	Name              string `json:"name"`
 	Version           string `json:"version"`
 	MIMEType          string `json:"mimetype"`
@@ -63,37 +63,37 @@ type kernelLanguageInfo struct {
 }
 
 // HelpLink stores data to be displayed in the help menu of the notebook.
-type helpLink struct {
+type HelpLink struct {
 	Text string `json:"text"`
 	URL  string `json:"url"`
 }
 
 // KernelInfo holds information about the igo kernel, for kernel_info_reply messages.
-type kernelInfo struct {
+type KernelInfo struct {
 	ProtocolVersion       string             `json:"protocol_version"`
 	Implementation        string             `json:"implementation"`
 	ImplementationVersion string             `json:"implementation_version"`
-	LanguageInfo          kernelLanguageInfo `json:"language_info"`
+	LanguageInfo          KernelLanguageInfo `json:"language_info"`
 	Banner                string             `json:"banner"`
-	HelpLinks             []helpLink         `json:"help_links"`
+	HelpLinks             []HelpLink         `json:"help_links"`
 }
 
 // shutdownReply encodes a boolean indication of shutdown/restart.
-type shutdownReply struct {
+type ShutdownReply struct {
 	Restart bool `json:"restart"`
 }
 
 const (
-	kernelStarting = "starting"
-	kernelBusy     = "busy"
-	kernelIdle     = "idle"
+	KernelStarting = "starting"
+	KernelBusy     = "busy"
+	KernelIdle     = "idle"
 )
 
-type InterpreterImpl interface {
+type AdaptorImpl interface {
 
   // GetKernelInfo returns the KernelInfo for this kernel implementation.
   //
-  GetKernelInfo() kernelInfo
+  GetKernelInfo() KernelInfo
   
   // Get the possible completions for the word at cursorPos in the code. 
   //
@@ -123,6 +123,14 @@ type InterpreterImpl interface {
 
 }
 
+type IPyKernel struct {
+  adaptor AdaptorImpl
+}
+
+func NewIPyKernel(anAdaptor AdaptorImpl) *IPyKernel {
+  return &IPyKernel{ adaptor: anAdaptor }
+}
+
 // RunWithSocket invokes the `run` function after acquiring the 
 // `Socket.Lock` and releases the lock when done. 
 //
@@ -132,8 +140,9 @@ func (s *Socket) RunWithSocket(run func(socket zmq4.Socket) error) error {
 	return run(s.Socket)
 }
 
-// runKernel is the main entry point to start the kernel.
-func runKernel(interp InterpreterImpl, connectionFile string) {
+// IPyKernel::Run is the main entry point to start the kernel.
+//
+func (kernel *IPyKernel) Run(connectionFile string) {
 
 	// Parse the connection info.
 	var connInfo ConnectionInfo
@@ -148,7 +157,7 @@ func runKernel(interp InterpreterImpl, connectionFile string) {
 	}
 
 	// Set up the ZMQ sockets through which the kernel will communicate.
-	sockets, err := prepareSockets(connInfo)
+	sockets, err := PrepareSockets(connInfo)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -157,7 +166,7 @@ func runKernel(interp InterpreterImpl, connectionFile string) {
   // before returning from runKernel. 
 
   // Start up the heartbeat handler.
-	startHeartbeat(sockets.HBSocket, &sync.WaitGroup{})
+	StartHeartbeat(sockets.HBSocket, &sync.WaitGroup{})
 
   // TODO gracefully shutdown the heartbeat handler on kernel shutdown by 
   // closing the chan returned by startHeartbeat. 
@@ -207,7 +216,7 @@ func runKernel(interp InterpreterImpl, connectionFile string) {
 				return
 			}
 
-			handleShellMsg(msgReceipt{msg, ids, sockets}, interp)
+			kernel.HandleShellMsg(msgReceipt{msg, ids, sockets})
 
 		case <-stdin:
 			// TODO Handle stdin socket.
@@ -225,14 +234,15 @@ func runKernel(interp InterpreterImpl, connectionFile string) {
 				return
 			}
 
-			handleShellMsg(msgReceipt{msg, ids, sockets}, interp)
+			kernel.HandleShellMsg(msgReceipt{msg, ids, sockets})
 		}
 	}
 }
 
 // prepareSockets sets up the ZMQ sockets through which the kernel
 // will communicate.
-func prepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
+//
+func PrepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
 	// Initialize the socket group.
 	var (
 		sg  SocketGroup
@@ -309,46 +319,46 @@ func prepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
 }
 
 // handleShellMsg responds to a message on the shell ROUTER socket.
-func handleShellMsg(receipt msgReceipt, interp InterpreterImpl) {
+func (kernel *IPyKernel) HandleShellMsg(receipt msgReceipt) {
 	// Tell the front-end that the kernel is working and when finished notify the
 	// front-end that the kernel is idle again.
-	if err := receipt.PublishKernelStatus(kernelBusy); err != nil {
+	if err := receipt.PublishKernelStatus(KernelBusy); err != nil {
 		log.Printf("Error publishing kernel status 'busy': %v\n", err)
 	}
 	defer func() {
-		if err := receipt.PublishKernelStatus(kernelIdle); err != nil {
+		if err := receipt.PublishKernelStatus(KernelIdle); err != nil {
 			log.Printf("Error publishing kernel status 'idle': %v\n", err)
 		}
 	}()
 
 	switch receipt.Msg.Header.MsgType {
 	case "kernel_info_request":
-		if err := handleKernelInfoRequest(interp, receipt); err != nil {
+		if err := kernel.HandleKernelInfoRequest(receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "complete_request":
-		if err := handleCompleteRequest(interp, receipt); err != nil {
+		if err := kernel.HandleCompleteRequest(receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "execute_request":
-		if err := handleExecuteRequest(interp, receipt); err != nil {
+		if err := kernel.HandleExecuteRequest(receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "shutdown_request":
-		handleShutdownRequest(receipt)
+		kernel.HandleShutdownRequest(receipt)
 	default:
 		log.Println("Unhandled shell message: ", receipt.Msg.Header.MsgType)
 	}
 }
 
-func handleKernelInfoRequest(interp InterpreterImpl, receipt msgReceipt) error {
+func (kernel *IPyKernel) HandleKernelInfoRequest(receipt msgReceipt) error {
 	return receipt.Reply(
     "kernel_info_reply",
-    interp.GetKernelInfo(),
+    kernel.adaptor.GetKernelInfo(),
   )
 }
 
-func handleCompleteRequest(interp InterpreterImpl, receipt msgReceipt) error {
+func (kernel *IPyKernel) HandleCompleteRequest(receipt msgReceipt) error {
 	// Extract the data from the request.
 	reqcontent := receipt.Msg.Content.(map[string]interface{})
 	code := reqcontent["code"].(string)
@@ -356,7 +366,7 @@ func handleCompleteRequest(interp InterpreterImpl, receipt msgReceipt) error {
 
 	// autocomplete the code at the cursor position
   cursorStart, cursorEnd, matches := 
-    interp.GetCodeWordCompletions(code, cursorPos)
+    kernel.adaptor.GetCodeWordCompletions(code, cursorPos)
   
 	// prepare the reply
 	content := make(map[string]interface{})
@@ -378,7 +388,8 @@ func handleCompleteRequest(interp InterpreterImpl, receipt msgReceipt) error {
 
 // handleExecuteRequest runs code from an execute_request method,
 // and sends the various reply messages.
-func handleExecuteRequest(interp InterpreterImpl, receipt msgReceipt) error {
+//
+func (kernel *IPyKernel) HandleExecuteRequest(receipt msgReceipt) error {
 
 	// Extract the data from the request.
 	reqcontent := receipt.Msg.Content.(map[string]interface{})
@@ -432,14 +443,14 @@ func handleExecuteRequest(interp InterpreterImpl, receipt msgReceipt) error {
 		io.Copy(&jupyterStdErr, rErr)
 	}()
 
-  interp.SetupDisplayCallback(receipt)
-  defer interp.TeardownDisplayCallback()
+  kernel.adaptor.SetupDisplayCallback(receipt)
+  defer kernel.adaptor.TeardownDisplayCallback()
   
   // evaluate and remove any special commands
-  code = interp.EvaluateRemoveSpecialCommands(outerr, code)
+  code = kernel.adaptor.EvaluateRemoveSpecialCommands(outerr, code)
   
 	// eval
-	data, executionErr := interp.EvaluateCode(code)
+	data, executionErr := kernel.adaptor.EvaluateCode(code)
 
 	// Close and restore the streams.
 	wOut.Close()
@@ -482,11 +493,12 @@ func handleExecuteRequest(interp InterpreterImpl, receipt msgReceipt) error {
 }
 
 // handleShutdownRequest sends a "shutdown" message.
-func handleShutdownRequest(receipt msgReceipt) {
+//
+func (kernel *IPyKernel) HandleShutdownRequest(receipt msgReceipt) {
 	content := receipt.Msg.Content.(map[string]interface{})
 	restart := content["restart"].(bool)
 
-	reply := shutdownReply{
+	reply := ShutdownReply{
 		Restart: restart,
 	}
 
@@ -498,10 +510,12 @@ func handleShutdownRequest(receipt msgReceipt) {
 	os.Exit(0)
 }
 
-// startHeartbeat starts a go-routine for handling heartbeat ping messages sent over the given `hbSocket`. The `wg`'s
-// `Done` method is invoked after the thread is completely shutdown. To request a shutdown the returned `shutdown` channel
-// can be closed.
-func startHeartbeat(hbSocket Socket, wg *sync.WaitGroup) (shutdown chan struct{}) {
+// startHeartbeat starts a go-routine for handling heartbeat ping messages 
+// sent over the given `hbSocket`. The `wg`'s `Done` method is invoked 
+// after the thread is completely shutdown. To request a shutdown the 
+// returned `shutdown` channel can be closed. 
+//
+func StartHeartbeat(hbSocket Socket, wg *sync.WaitGroup) (shutdown chan struct{}) {
 	quit := make(chan struct{})
 
 	// Start the handler that will echo any received messages back to the sender.

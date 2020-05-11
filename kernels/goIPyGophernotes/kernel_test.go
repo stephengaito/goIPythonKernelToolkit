@@ -61,8 +61,9 @@ func runTest(m *testing.M) int {
 	iopubPort = connInfo.IOPubPort
 
 	// Start the kernel.
-  interp := newGoInterpreter()
-	go runKernel(interp, connectionFile)
+  adaptor := NewGoAdaptor()
+  kernel  := NewIPyKernel(adaptor)
+	go kernel.Run(connectionFile)
 
 	return m.Run()
 }
@@ -476,7 +477,7 @@ func (client *testJupyterClient) performJupyterRequest(t *testing.T, request Com
 	subData := getMsgContentAsJSONObject(t, subMsg)
 	execState := getString(t, "content", subData, "execution_state")
 
-	if execState != kernelBusy {
+	if execState != KernelBusy {
 		t.Fatalf("\t%s Expected a 'busy' status message but got '%s'", failure, execState)
 	}
 
@@ -491,7 +492,7 @@ func (client *testJupyterClient) performJupyterRequest(t *testing.T, request Com
 			subData = getMsgContentAsJSONObject(t, subMsg)
 			execState = getString(t, "content", subData, "execution_state")
 
-			if execState != kernelIdle {
+			if execState != KernelIdle {
 				t.Fatalf("\t%s Expected a 'idle' status message but got '%s'", failure, execState)
 			}
 
