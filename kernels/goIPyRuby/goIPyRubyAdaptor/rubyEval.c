@@ -15,6 +15,15 @@
 // OR USE the pp.rb library (included in Ruby 2.5.x and up) to encode the
 // retsults.
 
+// IF a result is a hash whose keys are string names of the IPython 
+// Mimetypes, then the result is turned into the corresponding Go/IPython 
+// Mimemap. If a result is not a hash or is a hash whose keys are not
+// IPython Mimetypes, then the result is turned into a MIMETypeText using
+// the 'pp' script mentioned above.
+
+// Image data can be stored as Ruby strings with embedded zeros, but MUST 
+// be returned as the valid MIMETypeJPEG, or MIMETypePNG.
+
 void evalString(const char* aStr) {
   VALUE result = rb_eval_string(aStr);
   switch (TYPE(result)) {

@@ -42,8 +42,17 @@ void evalString(uintptr_t theInterp, const char* aStr) {
 // to determine what type the current top of the stack represents and then 
 // get that type as needed. 
 
-// Assemble the reulsts into an array.... and then use a Lua script to 
+// Assemble the results into an array.... and then use a Lua script to 
 // encode the result into either a 'pp' or json string. 
+
+// IF a result is a hash whose keys are string names of the IPython 
+// Mimetypes, then the result is turned into the corresponding Go/IPython 
+// Mimemap. If a result is not a hash or is a hash whose keys are not
+// IPython Mimetypes, then the result is turned into a MIMETypeText using
+// the 'pp' script mentioned above.
+
+// Image data can be stored as Lua strings with embedded zeros, but MUST 
+// be returned as the valid MIMETypeJPEG, or MIMETypePNG.
 
 }
 
