@@ -12,6 +12,12 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+const (
+	// ProtocolVersion defines the Jupyter protocol version.
+	ProtocolVersion string = "5.0"
+)
+
+
 // MsgHeader encodes header info for ZMQ messages.
 type MsgHeader struct {
 	MsgID           string `json:"msg_id"`
@@ -32,7 +38,7 @@ type ComposedMsg struct {
 
 // msgReceipt represents a received message, its return identities, and
 // the sockets for communication.
-type msgReceipt struct {
+type MsgReceipt struct {
 	Msg        ComposedMsg
 	Identities [][]byte
 	Sockets    SocketGroup
@@ -42,6 +48,24 @@ type msgReceipt struct {
 // and the values are the data formatted with respect to its MIME type.
 // All maps should contain at least a "text/plain" representation with a string value.
 type MIMEMap = map[string]interface{}
+
+// Support an interface similar - but not identical - to the IPython 
+// (canonical Jupyter kernel). See 
+// http://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display 
+// for a good overview of the support types. 
+//
+const (
+	MIMETypeHTML       = "text/html"
+	MIMETypeJavaScript = "application/javascript"
+	MIMETypeJPEG       = "image/jpeg"
+	MIMETypeJSON       = "application/json"
+	MIMETypeLatex      = "text/latex"
+	MIMETypeMarkdown   = "text/markdown"
+	MIMETypePNG        = "image/png"
+	MIMETypePDF        = "application/pdf"
+	MIMETypeSVG        = "image/svg+xml"
+	MIMETypeText       = "text/plain"
+)
 
 // Data is the exact structure returned to Jupyter.
 // It allows to fully specify how a value should be displayed.
@@ -140,7 +164,7 @@ func (msg ComposedMsg) ToWireMsg(signkey []byte) ([][]byte, error) {
 }
 
 // SendResponse sends a message back to return identities of the received message.
-func (receipt *msgReceipt) SendResponse(socket zmq4.Socket, msg ComposedMsg) error {
+func (receipt *MsgReceipt) SendResponse(socket zmq4.Socket, msg ComposedMsg) error {
 
 	msgParts, err := msg.ToWireMsg(receipt.Sockets.Key)
 	if err != nil {
@@ -183,7 +207,7 @@ func NewMsg(msgType string, parent ComposedMsg) (ComposedMsg, error) {
 
 // Publish creates a new ComposedMsg and sends it back to the return identities over the
 // IOPub channel.
-func (receipt *msgReceipt) Publish(msgType string, content interface{}) error {
+func (receipt *MsgReceipt) Publish(msgType string, content interface{}) error {
 	msg, err := NewMsg(msgType, receipt.Msg)
 
 	if err != nil {
@@ -198,7 +222,7 @@ func (receipt *msgReceipt) Publish(msgType string, content interface{}) error {
 
 // Reply creates a new ComposedMsg and sends it back to the return identities over the
 // Shell channel.
-func (receipt *msgReceipt) Reply(msgType string, content interface{}) error {
+func (receipt *MsgReceipt) Reply(msgType string, content interface{}) error {
 	msg, err := NewMsg(msgType, receipt.Msg)
 
 	if err != nil {
@@ -213,7 +237,7 @@ func (receipt *msgReceipt) Reply(msgType string, content interface{}) error {
 
 // PublishKernelStatus publishes a status message notifying front-ends of the state the kernel is in. Supports
 // states "starting", "busy", and "idle".
-func (receipt *msgReceipt) PublishKernelStatus(status string) error {
+func (receipt *MsgReceipt) PublishKernelStatus(status string) error {
 	return receipt.Publish("status",
 		struct {
 			ExecutionState string `json:"execution_state"`
@@ -225,7 +249,7 @@ func (receipt *msgReceipt) PublishKernelStatus(status string) error {
 
 // PublishExecutionInput publishes a status message notifying front-ends of what code is
 // currently being executed.
-func (receipt *msgReceipt) PublishExecutionInput(execCount int, code string) error {
+func (receipt *MsgReceipt) PublishExecutionInput(execCount int, code string) error {
 	return receipt.Publish("execute_input",
 		struct {
 			ExecCount int    `json:"execution_count"`
@@ -237,14 +261,14 @@ func (receipt *msgReceipt) PublishExecutionInput(execCount int, code string) err
 	)
 }
 
-func ensure(bundle MIMEMap) MIMEMap {
+func EnsureMIMEMap(bundle MIMEMap) MIMEMap {
 	if bundle == nil {
 		bundle = make(MIMEMap)
 	}
 	return bundle
 }
 
-func merge(a MIMEMap, b MIMEMap) MIMEMap {
+func MergeMIMEMap(a MIMEMap, b MIMEMap) MIMEMap {
 	if len(b) == 0 {
 		return a
 	}
@@ -258,7 +282,7 @@ func merge(a MIMEMap, b MIMEMap) MIMEMap {
 }
 
 // PublishExecuteResult publishes the result of the `execCount` execution as a string.
-func (receipt *msgReceipt) PublishExecutionResult(execCount int, data Data) error {
+func (receipt *MsgReceipt) PublishExecutionResult(execCount int, data Data) error {
 	return receipt.Publish("execute_result", struct {
 		ExecCount int     `json:"execution_count"`
 		Data      MIMEMap `json:"data"`
@@ -266,12 +290,12 @@ func (receipt *msgReceipt) PublishExecutionResult(execCount int, data Data) erro
 	}{
 		ExecCount: execCount,
 		Data:      data.Data,
-		Metadata:  ensure(data.Metadata),
+		Metadata:  EnsureMIMEMap(data.Metadata),
 	})
 }
 
 // PublishExecuteResult publishes a serialized error that was encountered during execution.
-func (receipt *msgReceipt) PublishExecutionError(err string, trace []string) error {
+func (receipt *MsgReceipt) PublishExecutionError(err string, trace []string) error {
 	return receipt.Publish("error",
 		struct {
 			Name  string   `json:"ename"`
@@ -286,7 +310,7 @@ func (receipt *msgReceipt) PublishExecutionError(err string, trace []string) err
 }
 
 // PublishDisplayData publishes a single image.
-func (receipt *msgReceipt) PublishDisplayData(data Data) error {
+func (receipt *MsgReceipt) PublishDisplayData(data Data) error {
 	// copy Data in a struct with appropriate json tags
 	return receipt.Publish("display_data", struct {
 		Data      MIMEMap `json:"data"`
@@ -294,8 +318,8 @@ func (receipt *msgReceipt) PublishDisplayData(data Data) error {
 		Transient MIMEMap `json:"transient"`
 	}{
 		Data:      data.Data,
-		Metadata:  ensure(data.Metadata),
-		Transient: ensure(data.Transient),
+		Metadata:  EnsureMIMEMap(data.Metadata),
+		Transient: EnsureMIMEMap(data.Transient),
 	})
 }
 
@@ -311,7 +335,7 @@ const (
 
 // PublishWriteStream prints the data string to a stream on the front-end. This is
 // either `StreamStdout` or `StreamStderr`.
-func (receipt *msgReceipt) PublishWriteStream(stream string, data string) error {
+func (receipt *MsgReceipt) PublishWriteStream(stream string, data string) error {
 	return receipt.Publish("stream",
 		struct {
 			Stream string `json:"name"`
@@ -327,7 +351,7 @@ func (receipt *msgReceipt) PublishWriteStream(stream string, data string) error 
 // front-end.
 type JupyterStreamWriter struct {
 	stream  string
-	receipt *msgReceipt
+	receipt *MsgReceipt
 }
 
 // Write implements `io.Writer.Write` by publishing the data via `PublishWriteStream`
@@ -343,6 +367,6 @@ func (writer *JupyterStreamWriter) Write(p []byte) (int, error) {
 }
 
 type OutErr struct {
-	out io.Writer
-	err io.Writer
+	Out io.Writer
+	Err io.Writer
 }

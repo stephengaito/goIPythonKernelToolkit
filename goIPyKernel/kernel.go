@@ -3,17 +3,11 @@ package goIPyKernel
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"go/ast"
-	"io"
+  "io"
 	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
-	"reflect"
-	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +15,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// SHOULD MOVE TO ADAPTOR?
+//
 // ExecCounter is incremented each time we run user code in the notebook.
 var ExecCounter int
 
@@ -56,7 +52,7 @@ type SocketGroup struct {
 }
 
 // KernelLanguageInfo holds information about the language that this kernel executes code in.
-type kernelLanguageInfo struct {
+type KernelLanguageInfo struct {
 	Name              string `json:"name"`
 	Version           string `json:"version"`
 	MIMEType          string `json:"mimetype"`
@@ -67,68 +63,86 @@ type kernelLanguageInfo struct {
 }
 
 // HelpLink stores data to be displayed in the help menu of the notebook.
-type helpLink struct {
+type HelpLink struct {
 	Text string `json:"text"`
 	URL  string `json:"url"`
 }
 
 // KernelInfo holds information about the igo kernel, for kernel_info_reply messages.
-type kernelInfo struct {
+type KernelInfo struct {
 	ProtocolVersion       string             `json:"protocol_version"`
 	Implementation        string             `json:"implementation"`
 	ImplementationVersion string             `json:"implementation_version"`
-	LanguageInfo          kernelLanguageInfo `json:"language_info"`
+	LanguageInfo          KernelLanguageInfo `json:"language_info"`
 	Banner                string             `json:"banner"`
-	HelpLinks             []helpLink         `json:"help_links"`
+	HelpLinks             []HelpLink         `json:"help_links"`
 }
 
 // shutdownReply encodes a boolean indication of shutdown/restart.
-type shutdownReply struct {
+type ShutdownReply struct {
 	Restart bool `json:"restart"`
 }
 
 const (
-	kernelStarting = "starting"
-	kernelBusy     = "busy"
-	kernelIdle     = "idle"
+	KernelStarting = "starting"
+	KernelBusy     = "busy"
+	KernelIdle     = "idle"
 )
 
-// RunWithSocket invokes the `run` function after acquiring the `Socket.Lock` and releases the lock when done.
+type AdaptorImpl interface {
+
+  // GetKernelInfo returns the KernelInfo for this kernel implementation.
+  //
+  GetKernelInfo() KernelInfo
+  
+  // Get the possible completions for the word at cursorPos in the code. 
+  //
+  GetCodeWordCompletions(code string, cursorPos int) (int, int, []string)
+
+  // Setup the Display callback by recording the msgReceipt information
+  // for later use by what ever callback implements the "Display" function. 
+  //
+  SetupDisplayCallback(receipt MsgReceipt)
+  
+  // Teardown the Display callback by removing the current msgReceipt
+  // information and setting things back to what ever default the 
+  // implementation uses.
+  //
+  TeardownDisplayCallback()
+  
+  // Evaluate (and remove) any implmenation specific special commands BEFORE 
+  // the code gets evaluated by the interpreter. The `outErr` variable 
+  // contains the stdOut and stdErr which can be used to capture the stdOut 
+  // and stdErr of any external commands run by these special commands. 
+  //
+  EvaluateRemoveSpecialCommands(outErr OutErr, code string) string
+
+  // Evaluate the code and return the results as a Data object.
+  //
+  EvaluateCode(code string) (rtnData Data, err error)
+
+}
+
+type IPyKernel struct {
+  adaptor AdaptorImpl
+}
+
+func NewIPyKernel(anAdaptor AdaptorImpl) *IPyKernel {
+  return &IPyKernel{ adaptor: anAdaptor }
+}
+
+// RunWithSocket invokes the `run` function after acquiring the 
+// `Socket.Lock` and releases the lock when done. 
+//
 func (s *Socket) RunWithSocket(run func(socket zmq4.Socket) error) error {
 	s.Lock.Lock()
 	defer s.Lock.Unlock()
 	return run(s.Socket)
 }
 
-type Kernel struct {
-	ir      *interp.Interp
-	display *interp.Import
-	// map name -> HTMLer, JSONer, Renderer...
-	// used to convert interpreted types to one of these interfaces
-	render map[string]xreflect.Type
-}
-
-// runKernel is the main entry point to start the kernel.
-func runKernel(connectionFile string) {
-
-	// Create a new interpreter for evaluating notebook code.
-	ir := interp.New()
-
-	// Throw out the error/warning messages that gomacro outputs writes to these streams.
-	ir.Comp.Stdout = ioutil.Discard
-	ir.Comp.Stderr = ioutil.Discard
-
-	// Inject the "display" package to render HTML, JSON, PNG, JPEG, SVG... from interpreted code
-	// maybe a dot-import is easier to use?
-	display, err := ir.Comp.ImportPackageOrError("display", "display")
-	if err != nil {
-		log.Print(err)
-	}
-
-	// Inject the stub "Display" function. declare a variable
-	// instead of a function, because we want to later change
-	// its value to the closure that holds a reference to msgReceipt
-	ir.DeclVar("Display", nil, stubDisplay)
+// IPyKernel::Run is the main entry point to start the kernel.
+//
+func (kernel *IPyKernel) Run(connectionFile string) {
 
 	// Parse the connection info.
 	var connInfo ConnectionInfo
@@ -143,19 +157,21 @@ func runKernel(connectionFile string) {
 	}
 
 	// Set up the ZMQ sockets through which the kernel will communicate.
-	sockets, err := prepareSockets(connInfo)
+	sockets, err := PrepareSockets(connInfo)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// TODO connect all channel handlers to a WaitGroup to ensure shutdown before returning from runKernel.
+  // TODO connect all channel handlers to a WaitGroup to ensure shutdown 
+  // before returning from runKernel. 
 
-	// Start up the heartbeat handler.
-	startHeartbeat(sockets.HBSocket, &sync.WaitGroup{})
+  // Start up the heartbeat handler.
+	StartHeartbeat(sockets.HBSocket, &sync.WaitGroup{})
 
-	// TODO gracefully shutdown the heartbeat handler on kernel shutdown by closing the chan returned by startHeartbeat.
+  // TODO gracefully shutdown the heartbeat handler on kernel shutdown by 
+  // closing the chan returned by startHeartbeat. 
 
-	type msgType struct {
+  type msgType struct {
 		Msg zmq4.Msg
 		Err error
 	}
@@ -184,13 +200,6 @@ func runKernel(connectionFile string) {
 	go poll(stdin, sockets.StdinSocket.Socket)
 	go poll(ctl, sockets.ControlSocket.Socket)
 
-	kernel := Kernel{
-		ir,
-		display,
-		nil,
-	}
-	kernel.initRenderers()
-
 	// Start a message receiving loop.
 	for {
 		select {
@@ -207,7 +216,7 @@ func runKernel(connectionFile string) {
 				return
 			}
 
-			kernel.handleShellMsg(msgReceipt{msg, ids, sockets})
+			kernel.HandleShellMsg(MsgReceipt{msg, ids, sockets})
 
 		case <-stdin:
 			// TODO Handle stdin socket.
@@ -225,14 +234,15 @@ func runKernel(connectionFile string) {
 				return
 			}
 
-			kernel.handleShellMsg(msgReceipt{msg, ids, sockets})
+			kernel.HandleShellMsg(MsgReceipt{msg, ids, sockets})
 		}
 	}
 }
 
 // prepareSockets sets up the ZMQ sockets through which the kernel
 // will communicate.
-func prepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
+//
+func PrepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
 	// Initialize the socket group.
 	var (
 		sg  SocketGroup
@@ -240,28 +250,38 @@ func prepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
 		ctx = context.Background()
 	)
 
-	// Create the shell socket, a request-reply socket that may receive messages from multiple frontend for
-	// code execution, introspection, auto-completion, etc.
-	sg.ShellSocket.Socket = zmq4.NewRouter(ctx)
+  // Create the shell socket, a request-reply socket that may receive 
+  // messages from multiple frontend for code execution, introspection, 
+  // auto-completion, etc. 
+  //
+  sg.ShellSocket.Socket = zmq4.NewRouter(ctx)
 	sg.ShellSocket.Lock = &sync.Mutex{}
 
-	// Create the control socket. This socket is a duplicate of the shell socket where messages on this channel
-	// should jump ahead of queued messages on the shell socket.
+  // Create the control socket. This socket is a duplicate of the shell 
+  // socket where messages on this channel should jump ahead of queued 
+  // messages on the shell socket. 
+  //
 	sg.ControlSocket.Socket = zmq4.NewRouter(ctx)
 	sg.ControlSocket.Lock = &sync.Mutex{}
 
-	// Create the stdin socket, a request-reply socket used to request user input from a front-end. This is analogous
-	// to a standard input stream.
+  // Create the stdin socket, a request-reply socket used to request user 
+  // input from a front-end. This is analogous to a standard input stream. 
+  //
 	sg.StdinSocket.Socket = zmq4.NewRouter(ctx)
 	sg.StdinSocket.Lock = &sync.Mutex{}
 
-	// Create the iopub socket, a publisher for broadcasting data like stdout/stderr output, displaying execution
-	// results or errors, kernel status, etc. to connected subscribers.
+  // Create the iopub socket, a publisher for broadcasting data like 
+  // stdout/stderr output, displaying execution results or errors, kernel 
+  // status, etc. to connected subscribers. 
+  //
 	sg.IOPubSocket.Socket = zmq4.NewPub(ctx)
 	sg.IOPubSocket.Lock = &sync.Mutex{}
 
-	// Create the heartbeat socket, a request-reply socket that only allows alternating recv-send (request-reply)
-	// calls. It should echo the byte strings it receives to let the requester know the kernel is still alive.
+  // Create the heartbeat socket, a request-reply socket that only allows 
+  // alternating recv-send (request-reply) calls. It should echo the byte 
+  // strings it receives to let the requester know the kernel is still 
+  // alive. 
+  //
 	sg.HBSocket.Socket = zmq4.NewRep(ctx)
 	sg.HBSocket.Lock = &sync.Mutex{}
 
@@ -299,64 +319,77 @@ func prepareSockets(connInfo ConnectionInfo) (SocketGroup, error) {
 }
 
 // handleShellMsg responds to a message on the shell ROUTER socket.
-func (kernel *Kernel) handleShellMsg(receipt msgReceipt) {
+func (kernel *IPyKernel) HandleShellMsg(receipt MsgReceipt) {
 	// Tell the front-end that the kernel is working and when finished notify the
 	// front-end that the kernel is idle again.
-	if err := receipt.PublishKernelStatus(kernelBusy); err != nil {
+	if err := receipt.PublishKernelStatus(KernelBusy); err != nil {
 		log.Printf("Error publishing kernel status 'busy': %v\n", err)
 	}
 	defer func() {
-		if err := receipt.PublishKernelStatus(kernelIdle); err != nil {
+		if err := receipt.PublishKernelStatus(KernelIdle); err != nil {
 			log.Printf("Error publishing kernel status 'idle': %v\n", err)
 		}
 	}()
 
-	ir := kernel.ir
-
 	switch receipt.Msg.Header.MsgType {
 	case "kernel_info_request":
-		if err := sendKernelInfo(receipt); err != nil {
+		if err := kernel.HandleKernelInfoRequest(receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "complete_request":
-		if err := handleCompleteRequest(ir, receipt); err != nil {
+		if err := kernel.HandleCompleteRequest(receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "execute_request":
-		if err := kernel.handleExecuteRequest(receipt); err != nil {
+		if err := kernel.HandleExecuteRequest(receipt); err != nil {
 			log.Fatal(err)
 		}
 	case "shutdown_request":
-		handleShutdownRequest(receipt)
+		kernel.HandleShutdownRequest(receipt)
 	default:
 		log.Println("Unhandled shell message: ", receipt.Msg.Header.MsgType)
 	}
 }
 
-// sendKernelInfo sends a kernel_info_reply message.
-func sendKernelInfo(receipt msgReceipt) error {
-	return receipt.Reply("kernel_info_reply",
-		kernelInfo{
-			ProtocolVersion:       ProtocolVersion,
-			Implementation:        "gophernotes",
-			ImplementationVersion: Version,
-			Banner:                fmt.Sprintf("Go kernel: gophernotes - v%s", Version),
-			LanguageInfo: kernelLanguageInfo{
-				Name:          "go",
-				Version:       runtime.Version(),
-				FileExtension: ".go",
-			},
-			HelpLinks: []helpLink{
-				{Text: "Go", URL: "https://golang.org/"},
-				{Text: "gophernotes", URL: "https://github.com/gopherdata/gophernotes"},
-			},
-		},
-	)
+func (kernel *IPyKernel) HandleKernelInfoRequest(receipt MsgReceipt) error {
+	return receipt.Reply(
+    "kernel_info_reply",
+    kernel.adaptor.GetKernelInfo(),
+  )
+}
+
+func (kernel *IPyKernel) HandleCompleteRequest(receipt MsgReceipt) error {
+	// Extract the data from the request.
+	reqcontent := receipt.Msg.Content.(map[string]interface{})
+	code := reqcontent["code"].(string)
+	cursorPos := int(reqcontent["cursor_pos"].(float64))
+
+	// autocomplete the code at the cursor position
+  cursorStart, cursorEnd, matches := 
+    kernel.adaptor.GetCodeWordCompletions(code, cursorPos)
+  
+	// prepare the reply
+	content := make(map[string]interface{})
+
+	if len(matches) == 0 {
+		content["ename"] = "ERROR"
+		content["evalue"] = "no completions found"
+		content["traceback"] = nil
+		content["status"] = "error"
+	} else {
+		content["cursor_start"] = float64(cursorStart)
+		content["cursor_end"] = float64(cursorEnd)
+		content["matches"] = matches
+		content["status"] = "ok"
+	}
+
+	return receipt.Reply("complete_reply", content)
 }
 
 // handleExecuteRequest runs code from an execute_request method,
 // and sends the various reply messages.
-func (kernel *Kernel) handleExecuteRequest(receipt msgReceipt) error {
+//
+func (kernel *IPyKernel) HandleExecuteRequest(receipt MsgReceipt) error {
 
 	// Extract the data from the request.
 	reqcontent := receipt.Msg.Content.(map[string]interface{})
@@ -410,17 +443,14 @@ func (kernel *Kernel) handleExecuteRequest(receipt msgReceipt) error {
 		io.Copy(&jupyterStdErr, rErr)
 	}()
 
-	// inject the actual "Display" closure that displays multimedia data in Jupyter
-	ir := kernel.ir
-	displayPlace := ir.ValueOf("Display")
-	displayPlace.Set(reflect.ValueOf(receipt.PublishDisplayData))
-	defer func() {
-		// remove the closure before returning
-		displayPlace.Set(reflect.ValueOf(stubDisplay))
-	}()
-
+  kernel.adaptor.SetupDisplayCallback(receipt)
+  defer kernel.adaptor.TeardownDisplayCallback()
+  
+  // evaluate and remove any special commands
+  code = kernel.adaptor.EvaluateRemoveSpecialCommands(outerr, code)
+  
 	// eval
-	vals, types, executionErr := doEval(ir, outerr, code)
+	data, executionErr := kernel.adaptor.EvaluateCode(code)
 
 	// Close and restore the streams.
 	wOut.Close()
@@ -434,7 +464,6 @@ func (kernel *Kernel) handleExecuteRequest(receipt msgReceipt) error {
 
 	if executionErr == nil {
 		// if the only non-nil value should be auto-rendered graphically, render it
-		data := kernel.autoRenderResults(vals, types)
 
 		content["status"] = "ok"
 		content["user_expressions"] = make(map[string]string)
@@ -451,7 +480,10 @@ func (kernel *Kernel) handleExecuteRequest(receipt msgReceipt) error {
 		content["evalue"] = executionErr.Error()
 		content["traceback"] = nil
 
-		if err := receipt.PublishExecutionError(executionErr.Error(), []string{executionErr.Error()}); err != nil {
+		if err := receipt.PublishExecutionError(
+      executionErr.Error(),
+      []string{executionErr.Error()},
+    ); err != nil {
 			log.Printf("Error publishing execution error: %v\n", err)
 		}
 	}
@@ -460,92 +492,13 @@ func (kernel *Kernel) handleExecuteRequest(receipt msgReceipt) error {
 	return receipt.Reply("execute_reply", content)
 }
 
-// doEval evaluates the code in the interpreter. This function captures an uncaught panic
-// as well as the values of the last statement/expression.
-func doEval(ir *interp.Interp, outerr OutErr, code string) (val []interface{}, typ []xreflect.Type, err error) {
-
-	// Capture a panic from the evaluation if one occurs and store it in the `err` return parameter.
-	defer func() {
-		if r := recover(); r != nil {
-			var ok bool
-			if err, ok = r.(error); !ok {
-				err = errors.New(fmt.Sprint(r))
-			}
-		}
-	}()
-
-	code = evalSpecialCommands(ir, outerr, code)
-
-	// Prepare and perform the multiline evaluation.
-	compiler := ir.Comp
-
-	// Don't show the gomacro prompt.
-	compiler.Options &^= base.OptShowPrompt
-
-	// Don't swallow panics as they are recovered above and handled with a Jupyter `error` message instead.
-	compiler.Options &^= base.OptTrapPanic
-
-	// Reset the error line so that error messages correspond to the lines from the cell.
-	compiler.Line = 0
-
-	// Parse the input code (and don't perform gomacro's macroexpansion).
-	// These may panic but this will be recovered by the deferred recover() above so that the error
-	// may be returned instead.
-	nodes := compiler.ParseBytes([]byte(code))
-	srcAst := ast2.AnyToAst(nodes, "doEval")
-
-	// If there is no srcAst then we must be evaluating nothing. The result must be nil then.
-	if srcAst == nil {
-		return nil, nil, nil
-	}
-
-	// Check if the last node is an expression. If the last node is not an expression then nothing
-	// is returned as a value. For example evaluating a function declaration shouldn't return a value but
-	// just have the side effect of declaring the function.
-	//
-	// This is actually needed only for gomacro classic interpreter
-	// (the fast interpreter already returns values only for expressions)
-	// but retained for compatibility.
-	var srcEndsWithExpr bool
-	if len(nodes) > 0 {
-		_, srcEndsWithExpr = nodes[len(nodes)-1].(ast.Expr)
-	}
-
-	// Compile the ast.
-	compiledSrc := ir.CompileAst(srcAst)
-
-	// Evaluate the code.
-	results, types := ir.RunExpr(compiledSrc)
-
-	// If the source ends with an expression, then the result of the execution is the value of the expression. In the
-	// event that all return values are nil, the result is also nil.
-	if srcEndsWithExpr {
-
-		// Count the number of non-nil values in the output. If they are all nil then the output is skipped.
-		nonNilCount := 0
-		values := make([]interface{}, len(results))
-		for i, result := range results {
-			val := basereflect.Interface(result)
-			if val != nil {
-				nonNilCount++
-			}
-			values[i] = val
-		}
-
-		if nonNilCount > 0 {
-			return values, types, nil
-		}
-	}
-
-	return nil, nil, nil
-}
-
 // handleShutdownRequest sends a "shutdown" message.
-func handleShutdownRequest(receipt msgReceipt) {
+//
+func (kernel *IPyKernel) HandleShutdownRequest(receipt MsgReceipt) {
 	content := receipt.Msg.Content.(map[string]interface{})
 	restart := content["restart"].(bool)
 
-	reply := shutdownReply{
+	reply := ShutdownReply{
 		Restart: restart,
 	}
 
@@ -557,10 +510,12 @@ func handleShutdownRequest(receipt msgReceipt) {
 	os.Exit(0)
 }
 
-// startHeartbeat starts a go-routine for handling heartbeat ping messages sent over the given `hbSocket`. The `wg`'s
-// `Done` method is invoked after the thread is completely shutdown. To request a shutdown the returned `shutdown` channel
-// can be closed.
-func startHeartbeat(hbSocket Socket, wg *sync.WaitGroup) (shutdown chan struct{}) {
+// startHeartbeat starts a go-routine for handling heartbeat ping messages 
+// sent over the given `hbSocket`. The `wg`'s `Done` method is invoked 
+// after the thread is completely shutdown. To request a shutdown the 
+// returned `shutdown` channel can be closed. 
+//
+func StartHeartbeat(hbSocket Socket, wg *sync.WaitGroup) (shutdown chan struct{}) {
 	quit := make(chan struct{})
 
 	// Start the handler that will echo any received messages back to the sender.
@@ -617,111 +572,4 @@ func startHeartbeat(hbSocket Socket, wg *sync.WaitGroup) (shutdown chan struct{}
 	}()
 
 	return quit
-}
-
-// find and execute special commands in code, remove them from returned string
-func evalSpecialCommands(ir *interp.Interp, outerr OutErr, code string) string {
-	lines := strings.Split(code, "\n")
-	stop := false
-	for i, line := range lines {
-		line = strings.TrimSpace(line)
-		if len(line) != 0 {
-			switch line[0] {
-			case '%':
-				evalSpecialCommand(ir, outerr, line)
-				lines[i] = ""
-			case '$':
-				evalShellCommand(ir, outerr, line)
-				lines[i] = ""
-			default:
-				// if a line is NOT a special command,
-				// stop processing special commands
-				stop = true
-			}
-		}
-		if stop {
-			break
-		}
-	}
-	return strings.Join(lines, "\n")
-}
-
-// execute special command. line must start with '%'
-func evalSpecialCommand(ir *interp.Interp, outerr OutErr, line string) {
-	const help string = `
-available special commands (%):
-%help
-%go111module {on|off}
-
-execute shell commands ($): $command [args...]
-example:
-$ls -l
-`
-
-	args := strings.SplitN(line, " ", 2)
-	cmd := args[0]
-	arg := ""
-	if len(args) > 1 {
-		arg = args[1]
-	}
-	switch cmd {
-
-	case "%go111module":
-		if arg == "on" {
-			ir.Comp.CompGlobals.Options |= base.OptModuleImport
-		} else if arg == "off" {
-			ir.Comp.CompGlobals.Options &^= base.OptModuleImport
-		} else {
-			panic(fmt.Errorf("special command %s: expecting a single argument 'on' or 'off', found: %q", cmd, arg))
-		}
-	case "%help":
-		fmt.Fprint(outerr.out, help)
-	default:
-		panic(fmt.Errorf("unknown special command: %q\n%s", line, help))
-	}
-}
-
-// execute shell command. line must start with '$'
-func evalShellCommand(ir *interp.Interp, outerr OutErr, line string) {
-	args := strings.Fields(line[1:])
-	if len(args) <= 0 {
-		return
-	}
-
-	var writersWG sync.WaitGroup
-	writersWG.Add(2)
-
-	cmd := exec.Command(args[0], args[1:]...)
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		panic(fmt.Errorf("Command.StdoutPipe() failed: %v", err))
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		panic(fmt.Errorf("Command.StderrPipe() failed: %v", err))
-	}
-
-	go func() {
-		defer writersWG.Done()
-		io.Copy(outerr.out, stdout)
-	}()
-
-	go func() {
-		defer writersWG.Done()
-		io.Copy(outerr.err, stderr)
-	}()
-
-	err = cmd.Start()
-	if err != nil {
-		panic(fmt.Errorf("error starting command '%s': %v", line[1:], err))
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		panic(fmt.Errorf("error waiting for command '%s': %v", line[1:], err))
-	}
-
-	writersWG.Wait()
 }

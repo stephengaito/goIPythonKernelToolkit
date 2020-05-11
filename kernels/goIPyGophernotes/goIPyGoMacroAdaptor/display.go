@@ -1,4 +1,4 @@
-package main
+package goIPyGoMacroAdaptor
 
 import (
 	"bytes"
@@ -11,25 +11,10 @@ import (
 	"reflect"
 	"strings"
 
+  tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
+  
 	basereflect "github.com/cosmos72/gomacro/base/reflect"
 	"github.com/cosmos72/gomacro/xreflect"
-)
-
-// Support an interface similar - but not identical - to the IPython (canonical Jupyter kernel).
-// See http://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display
-// for a good overview of the support types.
-
-const (
-	MIMETypeHTML       = "text/html"
-	MIMETypeJavaScript = "application/javascript"
-	MIMETypeJPEG       = "image/jpeg"
-	MIMETypeJSON       = "application/json"
-	MIMETypeLatex      = "text/latex"
-	MIMETypeMarkdown   = "text/markdown"
-	MIMETypePNG        = "image/png"
-	MIMETypePDF        = "application/pdf"
-	MIMETypeSVG        = "image/svg+xml"
-	MIMETypeText       = "text/plain"
 )
 
 /**
@@ -41,7 +26,7 @@ const (
  * libraries can implement Renderer without importing goIPyGophernotes
  */
 type Renderer = interface {
-	Render() Data
+	Render() tk.Data
 }
 
 /**
@@ -53,7 +38,7 @@ type Renderer = interface {
  * libraries can implement SimpleRenderer without importing goIPyGophernotes
  */
 type SimpleRenderer = interface {
-	SimpleRender() MIMEMap
+	SimpleRender() tk.MIMEMap
 }
 
 /**
@@ -93,7 +78,7 @@ type SVGer = interface {
 
 // injected as placeholder in the interpreter, it's then replaced at runtime
 // by a closure that knows how to talk with Jupyter
-func stubDisplay(Data) error {
+func stubDisplay(tk.Data) error {
 	return errors.New("cannot display: connection with Jupyter not available")
 }
 
@@ -115,7 +100,7 @@ func (adaptor *GoAdaptor) initRenderers() {
 func (adaptor *GoAdaptor) autoRenderResults(
   vals []interface{},
   types []xreflect.Type,
-) Data {
+) tk.Data {
 	var nilcount int
 	var obj interface{}
 	var typ xreflect.Type
@@ -132,16 +117,28 @@ func (adaptor *GoAdaptor) autoRenderResults(
 	}
 	if nilcount == len(vals) {
 		// if all values are nil, return empty Data
-		return Data{}
+		return tk.Data{}
 	}
-	return MakeData(MIMETypeText, fmt.Sprint(vals...))
+	return MakeData(tk.MIMETypeText, fmt.Sprint(vals...))
 }
 
 // return true if data type should be auto-rendered graphically
 func (adaptor *GoAdaptor) canAutoRender(data interface{}, typ xreflect.Type) bool {
 	switch data.(type) {
-	case Data, Renderer, SimpleRenderer, HTMLer, JavaScripter, JPEGer, JSONer,
-		Latexer, Markdowner, PNGer, PDFer, SVGer, image.Image:
+	case
+    tk.Data,
+    Renderer,
+    SimpleRenderer,
+    HTMLer,
+    JavaScripter,
+    JPEGer,
+    JSONer,
+		Latexer,
+    Markdowner,
+    PNGer,
+    PDFer,
+    SVGer,
+    image.Image :
 		return true
 	}
 	if adaptor == nil || typ == nil {
@@ -159,95 +156,95 @@ func (adaptor *GoAdaptor) canAutoRender(data interface{}, typ xreflect.Type) boo
 	return false
 }
 
-var autoRenderers = map[string]func(Data, interface{}) Data{
-	"Renderer": func(d Data, i interface{}) Data {
+var autoRenderers = map[string]func(tk.Data, interface{}) tk.Data{
+	"Renderer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(Renderer); ok {
 			x := r.Render()
-			d.Data = merge(d.Data, x.Data)
-			d.Metadata = merge(d.Metadata, x.Metadata)
-			d.Transient = merge(d.Transient, x.Transient)
+			d.Data = tk.MergeMIMEMap(d.Data, x.Data)
+			d.Metadata = tk.MergeMIMEMap(d.Metadata, x.Metadata)
+			d.Transient = tk.MergeMIMEMap(d.Transient, x.Transient)
 		}
 		return d
 	},
-	"SimpleRenderer": func(d Data, i interface{}) Data {
+	"SimpleRenderer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(SimpleRenderer); ok {
 			x := r.SimpleRender()
-			d.Data = merge(d.Data, x)
+			d.Data = tk.MergeMIMEMap(d.Data, x)
 		}
 		return d
 	},
-	"HTMLer": func(d Data, i interface{}) Data {
+	"HTMLer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(HTMLer); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypeHTML] = r.HTML()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypeHTML] = r.HTML()
 		}
 		return d
 	},
-	"JavaScripter": func(d Data, i interface{}) Data {
+	"JavaScripter": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(JavaScripter); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypeJavaScript] = r.JavaScript()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypeJavaScript] = r.JavaScript()
 		}
 		return d
 	},
-	"JPEGer": func(d Data, i interface{}) Data {
+	"JPEGer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(JPEGer); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypeJPEG] = r.JPEG()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypeJPEG] = r.JPEG()
 		}
 		return d
 	},
-	"JSONer": func(d Data, i interface{}) Data {
+	"JSONer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(JSONer); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypeJSON] = r.JSON()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypeJSON] = r.JSON()
 		}
 		return d
 	},
-	"Latexer": func(d Data, i interface{}) Data {
+	"Latexer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(Latexer); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypeLatex] = r.Latex()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypeLatex] = r.Latex()
 		}
 		return d
 	},
-	"Markdowner": func(d Data, i interface{}) Data {
+	"Markdowner": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(Markdowner); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypeMarkdown] = r.Markdown()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypeMarkdown] = r.Markdown()
 		}
 		return d
 	},
-	"PNGer": func(d Data, i interface{}) Data {
+	"PNGer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(PNGer); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypePNG] = r.PNG()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypePNG] = r.PNG()
 		}
 		return d
 	},
-	"PDFer": func(d Data, i interface{}) Data {
+	"PDFer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(PDFer); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypePDF] = r.PDF()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypePDF] = r.PDF()
 		}
 		return d
 	},
-	"SVGer": func(d Data, i interface{}) Data {
+	"SVGer": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(SVGer); ok {
-			d.Data = ensure(d.Data)
-			d.Data[MIMETypeSVG] = r.SVG()
+			d.Data = tk.EnsureMIMEMap(d.Data)
+			d.Data[tk.MIMETypeSVG] = r.SVG()
 		}
 		return d
 	},
-	"Image": func(d Data, i interface{}) Data {
+	"Image": func(d tk.Data, i interface{}) tk.Data {
 		if r, ok := i.(image.Image); ok {
 			b, mimeType, err := encodePng(r)
 			if err != nil {
 				d = makeDataErr(err)
 			} else {
-				d.Data = ensure(d.Data)
+				d.Data = tk.EnsureMIMEMap(d.Data)
 				d.Data[mimeType] = b
-				d.Metadata = merge(d.Metadata, imageMetadata(r))
+				d.Metadata = tk.MergeMIMEMap(d.Metadata, imageMetadata(r))
 			}
 		}
 		return d
@@ -255,10 +252,14 @@ var autoRenderers = map[string]func(Data, interface{}) Data{
 }
 
 // detect and render data types that should be auto-rendered graphically
-func (adaptor *GoAdaptor) autoRender(mimeType string, arg interface{}, typ xreflect.Type) Data {
-	var data Data
+func (adaptor *GoAdaptor) autoRender(
+  mimeType string,
+  arg interface{},
+  typ xreflect.Type,
+) tk.Data {
+	var data tk.Data
 	// try Data
-	if x, ok := arg.(Data); ok {
+	if x, ok := arg.(tk.Data); ok {
 		data = x
 	}
 
@@ -294,30 +295,37 @@ func (adaptor *GoAdaptor) autoRender(mimeType string, arg interface{}, typ xrefl
 	return fillDefaults(data, arg, "", nil, "", nil)
 }
 
-func fillDefaults(data Data, arg interface{}, s string, b []byte, mimeType string, err error) Data {
+func fillDefaults(
+  data tk.Data,
+  arg interface{},
+  s string,
+  b []byte,
+  mimeType string,
+  err error,
+) tk.Data {
 	if err != nil {
 		return makeDataErr(err)
 	}
 	if data.Data == nil {
-		data.Data = make(MIMEMap)
+		data.Data = make(tk.MIMEMap)
 	}
 	// cannot autodetect the mime type of a string
 	if len(s) != 0 && len(mimeType) != 0 {
 		data.Data[mimeType] = s
 	}
 	// ensure plain text is set
-	if data.Data[MIMETypeText] == "" {
+	if data.Data[tk.MIMETypeText] == "" {
 		if len(s) == 0 {
 			s = fmt.Sprint(arg)
 		}
-		data.Data[MIMETypeText] = s
+		data.Data[tk.MIMETypeText] = s
 	}
 	// if []byte is available, use it
 	if len(b) != 0 {
 		if len(mimeType) == 0 {
 			mimeType = http.DetectContentType(b)
 		}
-		if len(mimeType) != 0 && mimeType != MIMETypeText {
+		if len(mimeType) != 0 && mimeType != tk.MIMETypeText {
 			data.Data[mimeType] = b
 		}
 	}
@@ -325,7 +333,7 @@ func fillDefaults(data Data, arg interface{}, s string, b []byte, mimeType strin
 }
 
 // do our best to render data graphically
-func render(mimeType string, data interface{}) Data {
+func render(mimeType string, data interface{}) tk.Data {
 	var adaptor *GoAdaptor // intentionally nil
 	if adaptor.canAutoRender(data, nil) {
 		return adaptor.autoRender(mimeType, data, nil)
@@ -347,12 +355,12 @@ func render(mimeType string, data interface{}) Data {
 	default:
 		panic(fmt.Errorf("unsupported type, cannot render: %T", data))
 	}
-	return fillDefaults(Data{}, data, s, b, mimeType, err)
+	return fillDefaults(tk.Data{}, data, s, b, mimeType, err)
 }
 
-func makeDataErr(err error) Data {
-	return Data{
-		Data: MIMEMap{
+func makeDataErr(err error) tk.Data {
+	return tk.Data{
+		Data: tk.MIMEMap{
 			"ename":     "ERROR",
 			"evalue":    err.Error(),
 			"traceback": nil,
@@ -361,37 +369,37 @@ func makeDataErr(err error) Data {
 	}
 }
 
-func Any(mimeType string, data interface{}) Data {
+func Any(mimeType string, data interface{}) tk.Data {
 	return render(mimeType, data)
 }
 
 // same as Any("", data), autodetects MIME type
-func Auto(data interface{}) Data {
+func Auto(data interface{}) tk.Data {
 	return render("", data)
 }
 
-func MakeData(mimeType string, data interface{}) Data {
-	d := Data{
-		Data: MIMEMap{
+func MakeData(mimeType string, data interface{}) tk.Data {
+	d := tk.Data{
+		Data: tk.MIMEMap{
 			mimeType: data,
 		},
 	}
-	if mimeType != MIMETypeText {
-		d.Data[MIMETypeText] = fmt.Sprint(data)
+	if mimeType != tk.MIMETypeText {
+		d.Data[tk.MIMETypeText] = fmt.Sprint(data)
 	}
 	return d
 }
 
-func MakeData3(mimeType string, plaintext string, data interface{}) Data {
-	return Data{
-		Data: MIMEMap{
-			MIMETypeText: plaintext,
+func MakeData3(mimeType string, plaintext string, data interface{}) tk.Data {
+	return tk.Data{
+		Data: tk.MIMEMap{
+			tk.MIMETypeText: plaintext,
 			mimeType:     data,
 		},
 	}
 }
 
-func File(mimeType string, path string) Data {
+func File(mimeType string, path string) tk.Data {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		panic(err)
@@ -399,44 +407,44 @@ func File(mimeType string, path string) Data {
 	return Any(mimeType, bytes)
 }
 
-func HTML(html string) Data {
-	return MakeData(MIMETypeHTML, html)
+func HTML(html string) tk.Data {
+	return MakeData(tk.MIMETypeHTML, html)
 }
 
-func JavaScript(javascript string) Data {
-	return MakeData(MIMETypeJavaScript, javascript)
+func JavaScript(javascript string) tk.Data {
+	return MakeData(tk.MIMETypeJavaScript, javascript)
 }
 
-func JPEG(jpeg []byte) Data {
-	return MakeData(MIMETypeJPEG, jpeg)
+func JPEG(jpeg []byte) tk.Data {
+	return MakeData(tk.MIMETypeJPEG, jpeg)
 }
 
-func JSON(json map[string]interface{}) Data {
-	return MakeData(MIMETypeJSON, json)
+func JSON(json map[string]interface{}) tk.Data {
+	return MakeData(tk.MIMETypeJSON, json)
 }
 
-func Latex(latex string) Data {
-	return MakeData3(MIMETypeLatex, latex, "$"+strings.Trim(latex, "$")+"$")
+func Latex(latex string) tk.Data {
+	return MakeData3(tk.MIMETypeLatex, latex, "$"+strings.Trim(latex, "$")+"$")
 }
 
-func Markdown(markdown string) Data {
-	return MakeData(MIMETypeMarkdown, markdown)
+func Markdown(markdown string) tk.Data {
+	return MakeData(tk.MIMETypeMarkdown, markdown)
 }
 
-func Math(latex string) Data {
-	return MakeData3(MIMETypeLatex, latex, "$$"+strings.Trim(latex, "$")+"$$")
+func Math(latex string) tk.Data {
+	return MakeData3(tk.MIMETypeLatex, latex, "$$"+strings.Trim(latex, "$")+"$$")
 }
 
-func PDF(pdf []byte) Data {
-	return MakeData(MIMETypePDF, pdf)
+func PDF(pdf []byte) tk.Data {
+	return MakeData(tk.MIMETypePDF, pdf)
 }
 
-func PNG(png []byte) Data {
-	return MakeData(MIMETypePNG, png)
+func PNG(png []byte) tk.Data {
+	return MakeData(tk.MIMETypePNG, png)
 }
 
-func SVG(svg string) Data {
-	return MakeData(MIMETypeSVG, svg)
+func SVG(svg string) tk.Data {
+	return MakeData(tk.MIMETypeSVG, svg)
 }
 
 // MIME encapsulates the data and metadata into a Data.
@@ -446,6 +454,6 @@ func SVG(svg string) Data {
 // The exact structure of value is determined by what the frontend expects.
 // Some easier-to-use functions for common formats supported by the Jupyter frontend
 // are provided by the various functions above.
-func MIME(data, metadata MIMEMap) Data {
-	return Data{data, metadata, nil}
+func MIME(data, metadata tk.MIMEMap) tk.Data {
+	return tk.Data{data, metadata, nil}
 }

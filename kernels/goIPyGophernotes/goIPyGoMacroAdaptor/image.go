@@ -1,23 +1,25 @@
-package main
+package goIPyGoMacroAdaptor
 
 import (
 	"bytes"
 	"image"
 	"image/png"
+
+  tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
 
 // Image converts an image.Image to DisplayData containing PNG []byte,
 // or to DisplayData containing error if the conversion fails
-func Image(img image.Image) Data {
+func Image(img image.Image) tk.Data {
 	bytes, mimeType, err := encodePng(img)
 	if err != nil {
 		return makeDataErr(err)
 	}
-	return Data{
-		Data: MIMEMap{
+	return tk.Data{
+		Data: tk.MIMEMap{
 			mimeType: bytes,
 		},
-		Metadata: MIMEMap{
+		Metadata: tk.MIMEMap{
 			mimeType: imageMetadata(img),
 		},
 	}
@@ -30,13 +32,13 @@ func encodePng(img image.Image) (data []byte, mimeType string, err error) {
 	if err != nil {
 		return nil, "", err
 	}
-	return buf.Bytes(), MIMETypePNG, nil
+	return buf.Bytes(), tk.MIMETypePNG, nil
 }
 
 // imageMetadata returns image size, represented as MIMEMap{"width": width, "height": height}
-func imageMetadata(img image.Image) MIMEMap {
+func imageMetadata(img image.Image) tk.MIMEMap {
 	rect := img.Bounds()
-	return MIMEMap{
+	return tk.MIMEMap{
 		"width":  rect.Dx(),
 		"height": rect.Dy(),
 	}

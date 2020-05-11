@@ -1,10 +1,12 @@
-package main
+package goIPyGoMacroAdaptor
 
 import (
 	"image"
 	"image/color"
 	r "reflect"
 
+  tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
+  
 	"github.com/cosmos72/gomacro/imports"
 )
 
@@ -25,21 +27,21 @@ var display = imports.Package{
 		"Markdown":           r.ValueOf(Markdown),
 		"Math":               r.ValueOf(Math),
 		"MIME":               r.ValueOf(MIME),
-		"MIMETypeHTML":       r.ValueOf(MIMETypeHTML),
-		"MIMETypeJavaScript": r.ValueOf(MIMETypeJavaScript),
-		"MIMETypeJPEG":       r.ValueOf(MIMETypeJPEG),
-		"MIMETypeJSON":       r.ValueOf(MIMETypeJSON),
-		"MIMETypeLatex":      r.ValueOf(MIMETypeLatex),
-		"MIMETypeMarkdown":   r.ValueOf(MIMETypeMarkdown),
-		"MIMETypePDF":        r.ValueOf(MIMETypePDF),
-		"MIMETypePNG":        r.ValueOf(MIMETypePNG),
-		"MIMETypeSVG":        r.ValueOf(MIMETypeSVG),
+		"MIMETypeHTML":       r.ValueOf(tk.MIMETypeHTML),
+		"MIMETypeJavaScript": r.ValueOf(tk.MIMETypeJavaScript),
+		"MIMETypeJPEG":       r.ValueOf(tk.MIMETypeJPEG),
+		"MIMETypeJSON":       r.ValueOf(tk.MIMETypeJSON),
+		"MIMETypeLatex":      r.ValueOf(tk.MIMETypeLatex),
+		"MIMETypeMarkdown":   r.ValueOf(tk.MIMETypeMarkdown),
+		"MIMETypePDF":        r.ValueOf(tk.MIMETypePDF),
+		"MIMETypePNG":        r.ValueOf(tk.MIMETypePNG),
+		"MIMETypeSVG":        r.ValueOf(tk.MIMETypeSVG),
 		"PDF":                r.ValueOf(PDF),
 		"PNG":                r.ValueOf(PNG),
 		"SVG":                r.ValueOf(SVG),
 	},
 	Types: map[string]r.Type{
-		"Data":           r.TypeOf((*Data)(nil)).Elem(),
+		"Data":           r.TypeOf((*tk.Data)(nil)).Elem(),
 		"HTMLer":         r.TypeOf((*HTMLer)(nil)).Elem(),
 		"JavaScripter":   r.TypeOf((*JavaScripter)(nil)).Elem(),
 		"Image":          r.TypeOf((*image.Image)(nil)).Elem(),
@@ -47,7 +49,7 @@ var display = imports.Package{
 		"JSONer":         r.TypeOf((*JSONer)(nil)).Elem(),
 		"Latexer":        r.TypeOf((*Latexer)(nil)).Elem(),
 		"Markdowner":     r.TypeOf((*Markdowner)(nil)).Elem(),
-		"MIMEMap":        r.TypeOf((*MIMEMap)(nil)).Elem(),
+		"MIMEMap":        r.TypeOf((*tk.MIMEMap)(nil)).Elem(),
 		"PNGer":          r.TypeOf((*PNGer)(nil)).Elem(),
 		"PDFer":          r.TypeOf((*PDFer)(nil)).Elem(),
 		"Renderer":       r.TypeOf((*Renderer)(nil)).Elem(),
@@ -143,20 +145,20 @@ func (P *proxy_PDFer) PDF() []byte {
 // --------------- proxy for display.Renderer ---------------
 type proxy_Renderer struct {
 	Object  interface{}
-	Render_ func(interface{}) Data
+	Render_ func(interface{}) tk.Data
 }
 
-func (P *proxy_Renderer) Render() Data {
+func (P *proxy_Renderer) Render() tk.Data {
 	return P.Render_(P.Object)
 }
 
 // --------------- proxy for display.SimpleRenderer ---------------
 type proxy_SimpleRenderer struct {
 	Object        interface{}
-	SimpleRender_ func(interface{}) MIMEMap
+	SimpleRender_ func(interface{}) tk.MIMEMap
 }
 
-func (P *proxy_SimpleRenderer) SimpleRender() MIMEMap {
+func (P *proxy_SimpleRenderer) SimpleRender() tk.MIMEMap {
 	return P.SimpleRender_(P.Object)
 }
 

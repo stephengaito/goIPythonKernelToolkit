@@ -1,4 +1,4 @@
-package main
+package goIPyGoMacroAdaptor
 
 // (proto)Adaptor 
 
@@ -18,7 +18,9 @@ import(
 	"strings"
 	"sync"
 //	"time"
-  
+
+  tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
+
 	"github.com/cosmos72/gomacro/ast2"
 	"github.com/cosmos72/gomacro/base"
 	basereflect "github.com/cosmos72/gomacro/base/reflect"
@@ -27,6 +29,11 @@ import(
 
 	// compile and link files generated in imports/
 	_ "github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes/imports"
+)
+
+const (
+	// Version defines the goIPyGophernotes version.
+	Version string = "1.0.0"
 )
 
 type GoAdaptor struct {
@@ -67,18 +74,18 @@ func NewGoAdaptor() *GoAdaptor {
 }
 
 // GetKernelInfo sends a kernel_info_reply message.
-func (adaptor *GoAdaptor) GetKernelInfo() KernelInfo {
-  return KernelInfo{
-    ProtocolVersion:       ProtocolVersion,
+func (adaptor *GoAdaptor) GetKernelInfo() tk.KernelInfo {
+  return tk.KernelInfo{
+    ProtocolVersion:       tk.ProtocolVersion,
     Implementation:        "goIPyGophernotes",
     ImplementationVersion: Version,
     Banner:                fmt.Sprintf("Go kernel: goIPyGophernotes - v%s", Version),
-    LanguageInfo:          KernelLanguageInfo{
+    LanguageInfo:          tk.KernelLanguageInfo{
       Name:          "go",
       Version:       runtime.Version(),
       FileExtension: ".go",
     },
-    HelpLinks: []HelpLink{
+    HelpLinks: []tk.HelpLink{
       {Text: "Go", URL: "https://golang.org/"},
       {Text: "goIPyGophernotes", URL: "https://github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyGophernotes"},
     },
@@ -100,7 +107,7 @@ func (adaptor *GoAdaptor) GetCodeWordCompletions(
   return curStart, curEnd, matches
 }
 
-func (adaptor *GoAdaptor) SetupDisplayCallback(receipt msgReceipt) {
+func (adaptor *GoAdaptor) SetupDisplayCallback(receipt tk.MsgReceipt) {
   // inject the actual "Display" closure that displays multimedia data in Jupyter
 	ir := adaptor.ir
 	displayPlace := ir.ValueOf("Display")
@@ -119,7 +126,7 @@ func (adaptor *GoAdaptor) TeardownDisplayCallback() {
 //
 func (adaptor *GoAdaptor) EvaluateCode(
   code string,
-) (rtnData Data, err error) {
+) (rtnData tk.Data, err error) {
   ir := adaptor.ir
   
   // Capture a panic from the evaluation if one occurs and store it in the 
@@ -129,7 +136,7 @@ func (adaptor *GoAdaptor) EvaluateCode(
 		if r := recover(); r != nil {
 			var ok bool
 			if err, ok = r.(error); !ok {
-        rtnData = Data{}
+        rtnData = tk.Data{}
 				err = errors.New(fmt.Sprint(r))
 			}
 		}
@@ -162,7 +169,7 @@ func (adaptor *GoAdaptor) EvaluateCode(
   // must be nil then. 
   //
   if srcAst == nil {
-		return Data{}, nil
+		return tk.Data{}, nil
 	}
 
   // Check if the last node is an expression. If the last node is not an 
@@ -209,14 +216,14 @@ func (adaptor *GoAdaptor) EvaluateCode(
 		}
 	}
 
-	return Data{}, nil
+	return tk.Data{}, nil
 }
 
 // find and execute special commands in code, remove them from returned 
 // string 
 //
 func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
-  outerr OutErr,
+  outerr tk.OutErr,
   code string,
 ) string {
   ir := adaptor.ir
@@ -248,7 +255,7 @@ func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
 
 // execute special command. line must start with '%'
 //
-func evalSpecialCommand(ir *gomacro.Interp, outerr OutErr, line string) {
+func evalSpecialCommand(ir *gomacro.Interp, outerr tk.OutErr, line string) {
 	const help string = `
 available special commands (%):
 %help
@@ -276,14 +283,14 @@ $ls -l
 			panic(fmt.Errorf("special command %s: expecting a single argument 'on' or 'off', found: %q", cmd, arg))
 		}
 	case "%help":
-		fmt.Fprint(outerr.out, help)
+		fmt.Fprint(outerr.Out, help)
 	default:
 		panic(fmt.Errorf("unknown special command: %q\n%s", line, help))
 	}
 }
 
 // execute shell command. line must start with '$'
-func evalShellCommand(ir *gomacro.Interp, outerr OutErr, line string) {
+func evalShellCommand(ir *gomacro.Interp, outerr tk.OutErr, line string) {
 	args := strings.Fields(line[1:])
 	if len(args) <= 0 {
 		return
@@ -306,12 +313,12 @@ func evalShellCommand(ir *gomacro.Interp, outerr OutErr, line string) {
 
 	go func() {
 		defer writersWG.Done()
-		io.Copy(outerr.out, stdout)
+		io.Copy(outerr.Out, stdout)
 	}()
 
 	go func() {
 		defer writersWG.Done()
-		io.Copy(outerr.err, stderr)
+		io.Copy(outerr.Err, stderr)
 	}()
 
 	err = cmd.Start()
