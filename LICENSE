@@ -21,6 +21,19 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
+The image files in the directories:
+
+  kernels/goIPyLua/kernel
+
+and
+
+  kernels/goIPyRuby/kernel
+
+are used and altered under various permissive licenses from each respective 
+project (Lua.org and Ruby-lang.org). See the LICENSE file in these 
+directories for details.
+
+------------------------------------------------------------------------------
 The files in the:
 
   goIPyKernel

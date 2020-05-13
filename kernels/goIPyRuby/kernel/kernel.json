@@ -1,0 +1,9 @@
+{
+    "argv": [
+        "goIPyRuby",
+        "{connection_file}"
+    ],
+    "display_name": "RubyTK",
+    "language": "ruby",
+    "name": "rubyTK"
+}

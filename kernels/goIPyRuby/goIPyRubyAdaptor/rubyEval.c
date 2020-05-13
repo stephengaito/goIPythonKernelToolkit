@@ -8,7 +8,19 @@
 // requires sudo apt install ruby-dev
 
 #include <ruby/ruby.h>
+#include <ruby/version.h>
 #include "rubyEval.h"
+
+#ifndef RUBY_VERSION
+#define RUBY_VERSION \
+    STRINGIZE(RUBY_VERSION_MAJOR) "." \
+    STRINGIZE(RUBY_VERSION_MINOR) "." \
+    STRINGIZE(RUBY_VERSION_TEENY) ""
+#endif
+
+const char *rubyVersion(void) {
+  return RUBY_VERSION;
+}
 
 // USE the json.rb library (included in Ruby 2.5.x and up) to encode the 
 // results. 
@@ -24,7 +36,8 @@
 // Image data can be stored as Ruby strings with embedded zeros, but MUST 
 // be returned as the valid MIMETypeJPEG, or MIMETypePNG.
 
-void evalString(const char* aStr) {
+CIPythonReturn *evalString(const char* aStr) {
+
   VALUE result = rb_eval_string(aStr);
   switch (TYPE(result)) {
     case T_NIL      : // nil
@@ -52,7 +65,9 @@ void evalString(const char* aStr) {
     case T_NODE     : // (internal) syntax tree node
     case T_ZOMBIE   : // (internal) object awaiting finalization
     default         :
-    
+      break;
   }
+
+  return NULL;
 }
 

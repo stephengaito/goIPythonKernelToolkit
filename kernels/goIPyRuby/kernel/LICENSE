@@ -1,0 +1,30 @@
+The logo-*.png, as well as ruby-* files have been derived from the official 
+ruby logo used under the Creative Commons Attribution-ShareAlike 2.5 
+agreement (see below). The original files were obtained on 2020-May-12 
+from:
+
+https://cache.ruby-lang.org/pub/misc/logo/ruby-logo-kit.zip
+
+(See: https://www.ruby-lang.org/en/about/logo/ )
+
+These changes are Copyright (c) 2020, PerceptiSys Ltd (Stephen Gaito) and 
+remain under the Creative Commons Attribution-ShareAlike 2.5 agreement (see 
+below). These changes are solely meant to represent the goIPythonToolkit 
+version of the embedding of Ruby into Jupyter notebooks. As such they have 
+a "tk" (tool kit) added to the image.
+
+The Ruby Logo is Copyright (c) 2006, Yukihiro Matsumoto. It is licensed 
+under the terms of the Creative Commons Attribution-ShareAlike 2.5 
+agreement:
+
+http://creativecommons.org/licenses/by-sa/2.5/
+
+We ask that you do not use the logo to represent something other than the 
+Ruby Programming language. If you have questions about the logo, please 
+join the VIT-Discuss mailing list and ask your questions there:
+
+http://rubyforge.org/mailman/listinfo/vit-discuss/
+
+Thank you,
+
+The Ruby Visual Identity Team

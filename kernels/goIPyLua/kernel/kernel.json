@@ -1,0 +1,9 @@
+{
+    "argv": [
+        "goIPyLua",
+        "{connection_file}"
+    ],
+    "display_name": "LuaTK",
+    "language": "lua",
+    "name": "luaTK"
+}

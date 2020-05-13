@@ -1,6 +1,6 @@
 /*
 
-The iPyRubyAdaptor provides the interface from the goKernel to an embedded 
+The goIPyRubyAdaptor provides the interface from the goKernel to an embedded 
 (MRI) Ruby runtime instance (http://www.ruby-lang.org/en/). 
 
 */
