@@ -5,6 +5,10 @@
 // see: https://ipython.org/ipython-doc/3/notebook/nbformat.html
 // see: https://ipython.org/ipython-doc/dev/development/messaging.html
 
+// see: https://silverhammermba.github.io/emberb
+
+// see: https://gist.github.com/ammar/2787174 for examples of rb_funcall useage
+
 // requires sudo apt install ruby-dev
 
 #include <ruby/ruby.h>
@@ -22,52 +26,44 @@ const char *rubyVersion(void) {
   return RUBY_VERSION;
 }
 
-// USE the json.rb library (included in Ruby 2.5.x and up) to encode the 
-// results. 
-// OR USE the pp.rb library (included in Ruby 2.5.x and up) to encode the
-// retsults.
+VALUE IPyKernelData_New(VALUE recv) {
+  return LONG2FIX(goIPyKernelData_New());
+}
 
-// IF a result is a hash whose keys are string names of the IPython 
-// Mimetypes, then the result is turned into the corresponding Go/IPython 
-// Mimemap. If a result is not a hash or is a hash whose keys are not
-// IPython Mimetypes, then the result is turned into a MIMETypeText using
-// the 'pp' script mentioned above.
+void IPyKernelData_AddData(VALUE self, VALUE mimeType, VALUE dataValue) {
+  uint64 objId    = 0;
+  char *mimeType  = "";
+  char *dataValue = "";
 
-// Image data can be stored as Ruby strings with embedded zeros, but MUST 
-// be returned as the valid MIMETypeJPEG, or MIMETypePNG.
+  // check each argument.... do nothing if they are not valid
+  //
+  if Check_Type(self, T_FIXNUM)      { objId     = NUM2LONG(self);             } else return ;
+  if Check_Type(mimeType, T_STRING)  { mimeType  = StringValueCStr(mimeType);  } else return;
+  if Check_Type(dataValue, T_STRING) { dataValue = StringValueCStr(dataValue); } else return;
 
-CIPythonReturn *evalString(const char* aStr) {
+  goIPyKernData_AddData(objId, mimeType, dataValue);
+}
 
-  VALUE result = rb_eval_string(aStr);
-  switch (TYPE(result)) {
-    case T_NIL      : // nil
-    case T_OBJECT   : // ordinary object
-    case T_CLASS    : // class
-    case T_MODULE   : // module
-    case T_FLOAT    : // floating point number
-    case T_STRING   : // string
-    case T_REGEXP   : // regular expression
-    case T_ARRAY    : // array
-    case T_HASH     : // associative array
-    case T_STRUCT   : // (Ruby) structure
-    case T_BIGNUM   : // multi precision integer
-    case T_FIXNUM   : // Fixnum(31bit or 63bit integer)
-    case T_COMPLEX  : // complex number
-    case T_RATIONAL : // rational number
-    case T_FILE     : // IO
-    case T_TRUE     : // true
-    case T_FALSE    : // false
-    case T_DATA     : // (user) data
-    case T_SYMBOL   : // symbol
-    case T_ICLASS   : // (internal) included module
-    case T_MATCH    : // (internal) MatchData object
-    case T_UNDEF    : // (internal) undefined
-    case T_NODE     : // (internal) syntax tree node
-    case T_ZOMBIE   : // (internal) object awaiting finalization
-    default         :
-      break;
-  }
+void IPyKernelData_AddMetadate(VALUE self, VALUE mimeType, VALUE metaKey, VALUE dataValue) {
+  uint64 objId    = 0;
+  char *mimeType  = "";
+  char *metaKey   = "";
+  char *dataValue = "";
 
-  return NULL;
+  // check each argument.... do nothing if they are not valid
+  //
+  if Check_Type(self,      T_FIXNUM) { objId     = NUM2LONG(self);             } else return ;
+  if Check_Type(mimeType,  T_STRING) { mimeType  = StringValueCStr(mimeType);  } else return;
+  if Check_Type(metaKey,   T_STRING) { metaKey   = StringValueCStr(metaKey);   } else return;
+  if Check_Type(dataValue, T_STRING) { dataValue = StringValueCStr(dataValue); } else return;
+  
+  goIPyKernelData_AddMetadata(objId, mimeType, metaKey, dataValue);
+}
+
+uint64_t goIPyRubyEvalString(const char* aStr) {
+  //
+  // aStr.IPyRubyEval() returns an IPyKernelData object id
+  //
+  return rb_funcall(CStr->VALUE(aStr), rb_intern("IPyRubyEval"), 0, Qnil);
 }
 
