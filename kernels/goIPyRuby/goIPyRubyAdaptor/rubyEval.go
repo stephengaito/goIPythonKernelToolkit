@@ -3,29 +3,126 @@ package goIPyRubyAdaptor
 
 // #cgo pkg-config: ruby
 // #include <stdlib.h>
+// #include <stdint.h>
 // #include "rubyEval.h"
 import "C"
 
-
 import (
-  //"unsafe"
-  "fmt"
+  "unsafe"
+  //"fmt"
   
   tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
 
-const (
-	// Version defines the goIPyGophernotes version.
-	Version string = "1.0.0"
-)
 
-type GOIPythonReturn struct {
-  MimeType string
-  Value    string
+// Create a new Data object and store it in the IPyKernelStore.
+//
+// Return the GoUInt64 key to the new object in the IPyKernelStore.
+//
+//export GoIPyKernelData_New
+func GoIPyKernelData_New() uint64 {
+  return tk.TheObjectStore.Store(&tk.Data{
+    Data:     make(tk.MIMEMap),
+    Metadata: make(tk.MIMEMap),
+  })
 }
 
+// Add the mimeType/dataValue pair to the Data map of the Data object.
+//
+// Takes the Data object at `objId` from the IPyKernelStore and adds the 
+// mimeType/dataValue to the Data's Data map.
+//
+//export GoIPyKernelData_AddData
+func GoIPyKernelData_AddData(
+  objId         uint64,
+  mimeTypePtr  *C.char,
+  mimeTypeLen   C.int,
+  dataValuePtr *C.char,
+  dataValueLen  C.int,
+) {
+  anObj := tk.TheObjectStore.Get(objId)
+  if anObj != nil {
+    aDataObj := anObj.(*tk.Data)
+    
+    mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
+    if mimeType == tk.MIMETypePNG || mimeType == tk.MIMETypeJPEG {
+      dataValue := C.GoBytes(unsafe.Pointer(dataValuePtr), dataValueLen)
+      aDataObj.Data[mimeType] = dataValue
+    } else {
+      dataValue := C.GoStringN(dataValuePtr, dataValueLen)
+      aDataObj.Data[mimeType] = dataValue
+    }
+  }
+}
+
+// Add the mimeType/metaKey/dataValue triple to the Metadata map of the Data object.
+//
+// Takes the Data object at `objId` from the IPyKernelStore and adds the 
+// mimeType/metaKey/dataValue to the Data's Metadata map. 
+//
+//export GoIPyKernelData_AddMetadata
+func GoIPyKernelData_AddMetadata(
+  objId         uint64,
+  mimeTypePtr  *C.char,
+  mimeTypeLen   C.int,
+  metaKeyPtr   *C.char,
+  metaKeyLen    C.int,
+  dataValuePtr *C.char,
+  dataValueLen  C.int,
+) {
+  anObj := tk.TheObjectStore.Get(objId)
+  if anObj != nil {
+    aDataObj := anObj.(*tk.Data)
+    
+    mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
+    
+    if aDataObj.Metadata[mimeType] == nil {
+      aDataObj.Metadata[mimeType] = make(tk.MIMEMap)
+    }
+    aMimeMap  := aDataObj.Metadata[mimeType].(tk.MIMEMap)
+    
+    metaKey   := C.GoStringN(metaKeyPtr, metaKeyLen)
+    dataValue := C.GoStringN(dataValuePtr, dataValueLen)
+    
+    aMimeMap[metaKey] = dataValue
+  }
+}
+
+// A representation of the Ruby state.
+//
+// NOTE: Since Ruby is not reentrant, there can only be one Ruby instance.
+//
+type RubyState struct {
+  // NO state to keep...
+}
+
+// Creates a running Ruby instance.
+//
+func CreateRubyState() *RubyState {
+  C.startRuby()
+  return &RubyState{}
+}
+
+// Stops the currently running Ruby instance.
+//
+func (rs *RubyState) DeleteRubyState() {
+  C.stopRuby()
+}
+
+func (rs *RubyState) IsRubyRunning() bool {
+  return C.isRubyRunning() != 0
+}
+
+// Return the Ruby version as a string
+//
+func (rs *RubyState) GetRubyVersion() string {
+  return C.GoString(C.rubyVersion())
+}
+
+// Evaluate the String aGoStr in the (single) Ruby instance.
+//
+func (rs *RubyState) RubyEvaluateString(aGoStr string) tk.Data {
 /*
-func (r *RubyState) evalString(aGoStr string) {
   const char* aCStr = C.CString(aGoStr)
   defer C.free(unsafe.Pointer(aCStr))
   
@@ -39,72 +136,6 @@ func (r *RubyState) evalString(aGoStr string) {
     MimeType: C.GOString(returnValue.mimeType),
     Value:    C.GOString(returnValue.value),
   }
-}
 */
-type GoAdaptor struct {
-
-}
-
-func NewGoAdaptor() *GoAdaptor {
-  return &GoAdaptor{}
-}
-
-  // GetKernelInfo returns the KernelInfo for this kernel implementation.
-  //
-func (adaptor *GoAdaptor) GetKernelInfo() tk.KernelInfo {
-  return tk.KernelInfo{
-    ProtocolVersion:       tk.ProtocolVersion,
-    Implementation:        "goIPyRuby",
-    ImplementationVersion: Version,
-    Banner:                fmt.Sprintf("Go kernel: goIPyRuby - v%s", Version),
-    LanguageInfo:          tk.KernelLanguageInfo{
-      Name:          "ruby",
-      Version:       C.GoString(C.rubyVersion()),
-      FileExtension: ".rb",
-    },
-    HelpLinks: []tk.HelpLink{
-      {Text: "Ruby", URL: "https://golang.org/"},
-      {Text: "goIPyRuby", URL: "https://github.com/stephengaito/goIPythonKernelToolkit/kernels/goIPyRuby"},
-    },
-  }
-}
-  
-  // Get the possible completions for the word at cursorPos in the code. 
-  //
-func (adaptor *GoAdaptor) GetCodeWordCompletions(
-  code string,
-  cursorPos int,
-) (int, int, []string) {
-  return 0, 0, make([]string, 0)
-}
-
-  // Setup the Display callback by recording the msgReceipt information
-  // for later use by what ever callback implements the "Display" function. 
-  //
-func (adaptor *GoAdaptor) SetupDisplayCallback(receipt tk.MsgReceipt) {
-}
-  
-  // Teardown the Display callback by removing the current msgReceipt
-  // information and setting things back to what ever default the 
-  // implementation uses.
-  //
-func (adaptor *GoAdaptor) TeardownDisplayCallback() {
-}
-  
-  // Evaluate (and remove) any implmenation specific special commands BEFORE 
-  // the code gets evaluated by the interpreter. The `outErr` variable 
-  // contains the stdOut and stdErr which can be used to capture the stdOut 
-  // and stdErr of any external commands run by these special commands. 
-  //
-func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
-  outErr tk.OutErr,
-  code string,
-) string {
-  return code
-}
-
-  // Evaluate the code and return the results as a Data object.
-  //
-func (adaptor *GoAdaptor) EvaluateCode(code string) (rtnData tk.Data, err error) {
-  return tk.Data{}, nil
+  return tk.Data{}
 }

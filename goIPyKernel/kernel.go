@@ -15,9 +15,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// SHOULD MOVE TO ADAPTOR?
+// ExecCounter is incremented each time we run user code in the notebook. 
 //
-// ExecCounter is incremented each time we run user code in the notebook.
 var ExecCounter int
 
 // ConnectionInfo stores the contents of the kernel connection
