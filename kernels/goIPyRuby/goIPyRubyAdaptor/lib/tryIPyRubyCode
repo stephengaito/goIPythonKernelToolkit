@@ -1,0 +1,44 @@
+#!/usr/bin/env ruby
+
+require 'test/unit'
+require './IPyRubyData'
+
+someRubyCode = <<END_CODE
+
+require 'pp'
+
+MakeFileData("silly", "IPyRubyData.rb")
+
+END_CODE
+
+###############################################################
+# Start by mocking the IPyKernelData code used by Convert2Data
+
+class IPyKernelData
+
+  def initialize(aDataValue)
+    puts "--------------IPyKernelData::new---------------------"
+    pp aDataValue
+    puts "-----------------------------------------------------"
+  end
+
+  def addData(aMIMEKey, aValue)
+    puts "--------------IPyKernelData::addData-----------------"
+    pp aMIMEKey
+    pp aValue
+    puts "-----------------------------------------------------"
+  end
+  
+  def addMetadata(aMIMEKey, aMetaKey, aMetaValue)
+    puts "--------------IPyKernelData::addMetadata-------------"
+    pp aMIMEKey
+    pp aMetaKey
+    pp aMetaValue
+    puts "-----------------------------------------------------"
+  end
+end
+
+system("reset")
+puts "-------------------------------------------------------"
+IPyRubyEval(someRubyCode)
+puts "-------------------------------------------------------"

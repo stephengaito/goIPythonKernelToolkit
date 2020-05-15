@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+
+# This ruby script runs the IPyRubyData tests from the parent directory 
+
+load "lib/IPyRubyData_test.rb"
+

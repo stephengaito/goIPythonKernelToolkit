@@ -15,8 +15,8 @@ char *RubyStateCGoTest(void *data) {
   result = rb_eval_string_protect("require 'pp'; sillypp 'Hello world!'", &rubyFailed);
   
   if (rubyFailed) {
-    //VALUE errMessage = Qnil;
-    VALUE errMessage = rb_errinfo();
+    VALUE errMessage = Qnil;
+    //VALUE errMessage = rb_errinfo();
 //    rb_set_errinfo(Qnil);
     
     if (errMessage != Qnil) {
@@ -24,7 +24,7 @@ char *RubyStateCGoTest(void *data) {
     } else {
       printf("No error message\n");
     }
-    printf("test failded!\n");
+    printf("test failed!\n");
   }
   
   return NULL;
