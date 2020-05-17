@@ -1,3 +1,4 @@
+//go:generate esc -o rubyCode.go -pkg goIPyRubyAdaptor lib/IPyRubyData.rb
 //go:generate cGoTestGenerator goIPyRubyAdaptor goIPyRubyAdaptor ANSI-C tests
 
 package goIPyRubyAdaptor

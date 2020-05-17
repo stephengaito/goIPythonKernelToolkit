@@ -28,7 +28,9 @@ extern void *nullSetup(void);
 
     extern char *IPyKernelDataCGoTest(void *data);
 
-    extern char *RubyStateCGoTest(void *data);
+    extern char *LoadBrokenCodeCGoTest(void *data);
+
+    extern char *LoadHelloWorldCodeCGoTest(void *data);
 
   // end fixture: main
 

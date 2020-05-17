@@ -5,68 +5,63 @@ package goIPyRubyAdaptor
 import (
   "reflect"
   "testing"
-  
+  "github.com/stretchr/testify/assert"
+  //"github.com/davecgh/go-spew/spew"
   tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
 
+// assertions: https://godoc.org/github.com/stretchr/testify/assert
+// prettyPrint: https://github.com/davecgh/go-spew
+
 func TestGoIPyKernelData(t *testing.T) {
   objId := GoIPyKernelData_New()
-  if objId != tk.TheObjectStore.NextId {
-    t.Errorf(
-      "Object id should be %d but is: %d\n",
-      tk.TheObjectStore.NextId,
-      objId,
-    )
-  }
+  assert.Equalf(t, objId, tk.TheObjectStore.NextId, 
+    "Object id should be %d but is: %d\n",
+    tk.TheObjectStore.NextId,
+    objId,
+  )
   
   GoAddMimeMapToDataObjTest(objId)
-  anObj := tk.TheObjectStore.Get(objId)
+  
+  anObj := tk.TheObjectStore.GetLocked(objId)
+  tk.TheObjectStore.Unlock(objId) // need to release lock for further GoXXXXTest(s)...
+  
   aDataObj := anObj.(*tk.Data)
-  if aDataObj.Data["MIMETest"] == nil {
-    t.Error("Data object missing MIMETest")
-  }
-  if aDataObj.Data["MIMETest"] != "some data" {
-    t.Errorf(
-      "Data object MIMETest has wrong value %s\n",
-      aDataObj.Data["MIMETest"],
-    )
-  }
+  assert.NotNil(t, aDataObj.Data["MIMETest"], "Data object missing MIMETest")
+  assert.Equalf(t, aDataObj.Data["MIMETest"], "some data",
+    "Data object MIMETest has wrong value %s\n",
+    aDataObj.Data["MIMETest"],
+  )
   
   GoAddMimeMapToMetadataObjTest(objId)
-  if aDataObj.Metadata["MIMETest"] == nil {
-    t.Error("Metadata object missing MIMETest")
-  }
+  assert.NotNil(t, aDataObj.Metadata["MIMETest"],
+    "Metadata object missing MIMETest",
+  )
   aMimeMap := aDataObj.Metadata["MIMETest"].(tk.MIMEMap)
-  if aMimeMap["Width"] == nil {
-    t.Error("Metadata object missing MIMETest.Width")
-  }
-  if aMimeMap["Width"] != "some data" {
-    t.Errorf(
-      "Metadata object MIMETest.Width has wrong value %s\n",
-      aMimeMap["Width"],
-    )
-  }
+  assert.NotNil(t, aMimeMap["Width"],
+    "Metadata object missing MIMETest.Width",
+  )
+  assert.Equalf(t, aMimeMap["Width"], "some data",
+    "Metadata object MIMETest.Width has wrong value %s\n",
+    aMimeMap["Width"],
+  )
   
   GoAddJPEGMimeMapToDataObjTest(objId)
-  if aDataObj.Data["image/jpeg"] == nil {
-    t.Error("Data object missing MIMEMap JPEG")
-  }
+  assert.NotNil(t, aDataObj.Data["image/jpeg"],
+    "Data object missing MIMEMap JPEG",
+  )
   jpegObj    := aDataObj.Data["image/jpeg"];
   byteSlice := make([]byte, 0)
-  if reflect.TypeOf(jpegObj) != reflect.TypeOf(byteSlice) {
-    t.Errorf(
-      "Data object MIMEMap JPEG has wrong type %T\n",
-      jpegObj,
-    )
-  }
+  assert.Equalf(t, reflect.TypeOf(jpegObj), reflect.TypeOf(byteSlice),
+    "Data object MIMEMap JPEG has wrong type %T\n",
+    jpegObj,
+  )
   jpegSlice := jpegObj.([]byte)
   jpegLen   := len(jpegSlice)
-  if jpegLen != 10 {
-    t.Errorf(
-      "Data object MIMEMap JPEG has wrong length: %d\n",
-      jpegLen,
-    )
-  }
+  assert.Equalf(t, jpegLen, 10,
+    "Data object MIMEMap JPEG has wrong length: %d\n",
+    jpegLen,
+  )
   if jpegSlice[0] != 's' ||
      jpegSlice[1] != 'o' ||
      jpegSlice[2] != 'm' ||
@@ -81,25 +76,21 @@ func TestGoIPyKernelData(t *testing.T) {
   }
   
   GoAddPNGMimeMapToDataObjTest(objId)
-  if aDataObj.Data["image/png"] == nil {
-    t.Error("Data object missing MIMEMap PNG")
-  }
+  assert.NotNil(t, aDataObj.Data["image/png"],
+    "Data object missing MIMEMap PNG",
+  )
   pngObj    := aDataObj.Data["image/png"];
   byteSlice  = make([]byte, 0)
-  if reflect.TypeOf(pngObj) != reflect.TypeOf(byteSlice) {
-    t.Errorf(
-      "Data object MIMEMap PNG has wrong type %T\n",
-      pngObj,
-    )
-  }
+  assert.Equalf(t, reflect.TypeOf(pngObj), reflect.TypeOf(byteSlice),
+    "Data object MIMEMap PNG has wrong type %T\n",
+    pngObj,
+  )
   pngSlice := pngObj.([]byte)
   pngLen   := len(pngSlice)
-  if pngLen != 10 {
-    t.Errorf(
-      "Data object MIMEMap PNG has wrong length: %d\n",
-      pngLen,
-    )
-  }
+  assert.Equalf(t, pngLen, 10,
+    "Data object MIMEMap PNG has wrong length: %d\n",
+    pngLen,
+  )
   if pngSlice[0] != 's' ||
      pngSlice[1] != 'o' ||
      pngSlice[2] != 'm' ||
@@ -112,4 +103,171 @@ func TestGoIPyKernelData(t *testing.T) {
      pngSlice[9] != 0 {
     t.Error("Data object MIMEMap PNG has wrong content")
   }
+}
+
+func TestIPyKernelData_New(t *testing.T) {
+  rubyState := CreateRubyState()
+  
+  codePath := "/lib/IPyRubyData.rb"
+  IPyRubyDataCode, err := FSString(false, codePath)
+  assert.NoErrorf(t, err,
+    "Could not load file [%s]", codePath)
+    
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
+    "Could not load IPyRubyData.rb")
+ 
+  lastId := tk.TheObjectStore.NextId
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("TestIPyKernelData_New", "IPyKernelData_New(nil)"),
+    "Could not call TestIPyKernelData_New")
+  objId := tk.TheObjectStore.NextId
+  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
+  anObj := tk.TheObjectStore.GetLocked(objId)
+  defer tk.TheObjectStore.Unlock(objId)
+  assert.NotNil(t, anObj, "Should have returned an empty Data object interface")
+  aDataObj := anObj.(*tk.Data)
+  assert.NotNil(t, aDataObj, "Should have returned an empty Data object")
+  assert.Zero(t, len(aDataObj.Data),      "Should have an empty Data mimeMap")
+  assert.Zero(t, len(aDataObj.Metadata),  "Should have an empty Metadata mimeMap")
+  assert.Zero(t, len(aDataObj.Transient), "Should have an empty Transient mimeMap")
+}
+
+func TestIPyKernelData_AddData(t *testing.T) {
+  rubyCode := `
+    anObj = IPyKernelData_New(nil)
+    IPyKernelData_AddData(anObj, MIMETypeText, "test text")
+  `
+  rubyState := CreateRubyState()
+  
+  codePath := "/lib/IPyRubyData.rb"
+  IPyRubyDataCode, err := FSString(false, codePath)
+  assert.NoErrorf(t, err,
+    "Could not load file [%s]", codePath)
+    
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
+    "Could not load IPyRubyData.rb")
+ 
+  lastId := tk.TheObjectStore.NextId
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("TestIPyKernelData_AddData", rubyCode),
+    "Could not call TestIPyKernelData_AddData")
+  objId := tk.TheObjectStore.NextId
+  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
+  anObj := tk.TheObjectStore.GetLocked(objId)
+  defer tk.TheObjectStore.Unlock(objId)
+      
+  assert.NotNil(t, anObj, "Should have returned an empty Data object interface")
+  aDataObj := anObj.(*tk.Data)
+  //spew.Dump(aDataObj)
+  assert.NotNil(t, aDataObj, "Should have returned a Data object")
+  assert.Equal(t, 1, len(aDataObj.Data),  "Should have a Data mimeMap with one entry")
+  assert.Zero(t, len(aDataObj.Metadata),  "Should have an empty Metadata mimeMap")
+  assert.Zero(t, len(aDataObj.Transient), "Should have an empty Transient mimeMap")
+}
+
+func TestIPyKernelData_AddMetadata(t *testing.T) {
+  rubyCode := `
+    anObj = IPyKernelData_New(nil)
+    IPyKernelData_AddMetadata(anObj, MIMETypeText, "test", "test text")
+  `
+  rubyState := CreateRubyState()
+  
+  codePath := "/lib/IPyRubyData.rb"
+  IPyRubyDataCode, err := FSString(false, codePath)
+  assert.NoErrorf(t, err,
+    "Could not load file [%s]", codePath)
+    
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
+    "Could not load IPyRubyData.rb")
+ 
+  lastId := tk.TheObjectStore.NextId
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("TestIPyKernelData_AddMetadata", rubyCode),
+    "Could not call TestIPyKernelData_AddMetadata")
+  objId := tk.TheObjectStore.NextId
+  //spew.Dump(tk.TheObjectStore)
+  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
+  anObj := tk.TheObjectStore.GetLocked(objId)
+  defer tk.TheObjectStore.Unlock(objId)
+  
+  assert.NotNil(t, anObj, "Should have returned a Data object interface")
+  aDataObj := anObj.(*tk.Data)
+  //spew.Dump(aDataObj)
+  assert.NotNil(t, aDataObj, "Should have returned an empty Data object")
+  assert.Zero(t, len(aDataObj.Data),  "Should have an empty Data mimeMap")
+  assert.Equal(t, 1, len(aDataObj.Metadata),  "Should have a Metadata mimeMap with one entry")
+  assert.Zero(t, len(aDataObj.Data),  "Should have an empty Metadata mimeMap")
+  assert.Zero(t, len(aDataObj.Transient), "Should have an empty Transient mimeMap")
+  
+  assert.NotNil(t, aDataObj.Metadata["text/plain"],
+    "aDataObj does not have MIMETypeText")
+  aMimeMap := aDataObj.Metadata["text/plain"].(tk.MIMEMap)
+  assert.NotNil(t, aMimeMap["test"],
+    "aMimeMap should have test key")
+  assert.Equal(t, aMimeMap["test"], "test text",
+    "aMimeMap should have correct test value")
+}
+
+func TestMakeLastErrorData(t *testing.T) {
+  // moved from lib/IPyRubyData_test.rb
+  
+  rubyTestCode := `savedErr = nil
+    begin
+      raise("This is silly")
+    rescue
+      savedErr = $!
+    end
+    MakeLastErrorData(savedErr, "This is a test")
+`
+  rubyState := CreateRubyState()
+  
+  codePath := "/lib/IPyRubyData.rb"
+  IPyRubyDataCode, err := FSString(false, codePath)
+  assert.NoErrorf(t, err,
+    "Could not load file [%s]", codePath)
+    
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
+    "Could not load IPyRubyData.rb")
+ 
+  lastId := tk.TheObjectStore.NextId
+  assert.NoError(t, 
+    rubyState.LoadRubyCode("TestMakeLastErrorData", rubyTestCode),
+    "Could not MakeLastErrorData")
+  objId := tk.TheObjectStore.NextId
+  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
+  
+  anObj := tk.TheObjectStore.GetLocked(objId)
+  defer tk.TheObjectStore.Unlock(objId)
+  
+  assert.NotNil(t, anObj, "Should have returned a Data object interface")
+  aDataObj := anObj.(*tk.Data)
+  //spew.Dump(aDataObj)
+  assert.NotNil(t, aDataObj, "Should have returned an empty Data object")
+  assert.Equal(t, 4, len(aDataObj.Data),  "Should have an Metadata mimeMap with one entry")
+  assert.Zero(t, len(aDataObj.Metadata),  "Should have an empty Metadata mimeMap")
+  assert.Zero(t, len(aDataObj.Transient), "Should have an empty Transient mimeMap")
+
+  lastErrData := aDataObj
+  
+  assert.NotNil(t, lastErrData.Data["ename"],
+      "lastErrData does not have ename")
+  assert.NotNil(t, lastErrData.Data["evalue"],
+      "lastErrData does not have evalue")
+  assert.NotNil(t, lastErrData.Data["traceback"],
+      "lastErrData does not have traceback")
+  assert.NotNil(t, lastErrData.Data["status"],
+      "lastErrData does not have status")
+
+  assert.Equal(t, lastErrData.Data["ename"], "ERROR",
+      "lastErrData has incorrect evalue")
+  assert.Equal(t, lastErrData.Data["evalue"], "This is silly",
+      "lastErrData has incorrect evalue")
+  assert.Equal(t, lastErrData.Data["traceback"].([]string)[0], "This is a test",
+      "lastErrData has incorrect traceback")
+  assert.Equal(t, lastErrData.Data["status"], "error",
+      "lastErrData has incorrect status")
 }

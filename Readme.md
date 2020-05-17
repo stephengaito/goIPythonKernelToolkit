@@ -42,3 +42,28 @@ always be, the better Jupyter notebook kernel for Go.
 If you are interested in building Jupyter notebook kernels for a language 
 embedded in Go, then this project might be the best place to start your own 
 work.
+
+## External Requirements 
+
+The `kernels/goIPyRuby` and `kernels/goIPyLua` make use of Ruby and Lua 
+scripts. These scripts are embedded into the respective go kernel binaries 
+using [Matt Jibson's esc tool](https://github.com/mjibson/esc). In order 
+to *build* the kernels from source, the `esc` tool must be installed. To 
+do this, type: 
+
+```
+    go get -u github.com/mjibson/esc
+```
+
+Then in each of the respective adaptor directories type:
+
+```
+    go generate
+```
+
+Then
+
+```
+    go install
+```
+

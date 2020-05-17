@@ -1,31 +1,37 @@
 package goIPyKernel
 
+// assertions: 
+
 import(
   "testing"
+  "github.com/stretchr/testify/assert"
 )
 
+// assertions: https://godoc.org/github.com/stretchr/testify/assert
+
 func TestTheObjectStore(t *testing.T) {
-  if TheObjectStore == nil { t.Error("TheObjectStore is nil") }
+  assert.NotNil(t, TheObjectStore, "TheObjectStore is nil")
   
   // store an object
   anObjId := TheObjectStore.Store("this is a test")
-  if anObjId == 0 { t.Error("ObjId is zero")}
-  if anObjId != 1 { t.Error("ObjId is not one")}
+  assert.NotZero(t, anObjId, "ObjId is zero")
+  assert.Equal(t, anObjId, uint64(1), "ObjId is not one")
   
   // get that object
-  anObj := TheObjectStore.Get(anObjId)
-  if anObj == nil { t.Error("anObj is nil")}
+  anObj := TheObjectStore.GetLocked(anObjId)
+  defer TheObjectStore.Unlock(anObjId)
+  
+  assert.NotNil(t, anObj, "anObj is nil")
   aStr := anObj.(string)
-  if aStr != "this is a test" { t.Error("aStr is not as stored")}
+  assert.Equal(t, aStr, "this is a test", "aStr is not as stored")
  
   // show that we can delete an object
   TheObjectStore.Delete(anObjId)
 
   // show that that object no longer exists
-  anObj = TheObjectStore.Get(anObjId)
-  if anObj != nil { t.Error("anObj is not nil")}
+  anObj = TheObjectStore.GetLocked(anObjId)
+  assert.Nil(t, anObj, "anObj is not nil")
   
   // show that we can delete twice 
   TheObjectStore.Delete(anObjId)
-  
 }

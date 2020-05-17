@@ -23,6 +23,12 @@ class IPyKernelData
     puts "-----------------------------------------------------"
   end
   
+  def appendTraceback(aValue)
+    puts "--------------IPyKernelData::appendTraceback---------"
+    pp aValue
+    puts "-----------------------------------------------------"
+  end
+
   def addMetadata(aMIMEKey, aMetaKey, aMetaValue)
     puts "--------------IPyKernelData::addMetadata-------------"
     pp aMIMEKey
@@ -70,38 +76,24 @@ class TestIPyRubyData < Test::Unit::TestCase
      }),
       "We have a IPyRubyData")
   end
-
-  def test_MakeLastErrorData
-    savedErr = nil
-    begin
-      raise("This is silly")
-    rescue
-      savedErr = $!
-    end
-    lastErrData = MakeLastErrorData(savedErr, "This is a test")
-
-    assert(IsIPyRubyData(lastErrData),
-      "lastErrData is not a IPyRubyData")
-    assert(lastErrData['Data'].has_key?('ename'),
-      "lastErrData does not have ename")
-    assert(lastErrData['Data'].has_key?('evalue'),
-      "lastErrData does not have evalue")
-    assert(lastErrData['Data'].has_key?('traceback'),
-      "lastErrData does not have traceback")
-    assert(lastErrData['Data'].has_key?('status'),
-      "lastErrData does not have status")
-    assert(lastErrData['Data']['ename'] == "ERROR",
-      "lastErrData has incorrect evalue")
-    assert(lastErrData['Data']['evalue'] == "This is silly",
-      "lastErrData has incorrect evalue")
-    assert(lastErrData['Data']['traceback'] == ["This is a test"],
-      "lastErrData has incorrect traceback")
-    assert(lastErrData['Data']['status'] == "error",
-      "lastErrData has incorrect status")
-  end
+ 
+#  def test_MakeLastErrorData
+#    Can not test MakeLastErrorData directly...
+#    ... since it (now) manipulates Go data in TheObjectStore
+#    MOVED TO ../rubyEval_IPyKernelData_test.go
+#  end
   
   def test_MakeDataAndText
-    lastErrData = MakeLastErrorData("testError", "test_MakeDataAndText")
+    lastErrData = {
+    "Data" => {
+      "ename" => "ERROR",
+      "evalue" => "testError",
+      "traceback" => ["test_MakeDataAndText"],
+      "status" => "error"
+    },
+    "Metadata" => {},
+    "Transient" => {}
+    }
     assert(MakeDataAndText("silly", lastErrData, "sillier") == lastErrData,
       "should have returned data")
     someData = MakeDataAndText("sillyMimeType", "someData", "someText")

@@ -7,25 +7,44 @@
 #include "goIPyRubyAdaptorCGoTests.h"
 #include "cGoTests.h"
 
-char *RubyStateCGoTest(void *data) {
+
+/// \brief Should only load the helloWorldCode once
+///
+char *LoadHelloWorldCodeCGoTest(void *data) {
   startRuby();
-  rb_set_errinfo(Qnil);
-  int rubyFailed;
-  VALUE result;
-  result = rb_eval_string_protect("require 'pp'; sillypp 'Hello world!'", &rubyFailed);
+
+  char *errMesg = loadRubyCode("helloWorldCode", "puts 'Hello World!'");
+  cGoTest_Nil("Should have no error message", errMesg);
   
-  if (rubyFailed) {
-    VALUE errMessage = Qnil;
-    //VALUE errMessage = rb_errinfo();
-//    rb_set_errinfo(Qnil);
-    
-    if (errMessage != Qnil) {
-      printf("%s\n", StringValueCStr(errMessage));
-    } else {
-      printf("No error message\n");
-    }
-    printf("test failed!\n");
-  }
+  cGoTest(
+    "Should load the helloWorldCode",
+    isRubyCodeLoaded("helloWorldCode")
+  );
+
+  errMesg = loadRubyCode("helloWorldCode", "puts 'Hello World!'");
+  cGoTest_Nil("Should have no error message", errMesg);
   
+  cGoTest(
+    "Should load the helloWorldCode",
+    isRubyCodeLoaded("helloWorldCode")
+  );
+
+  return NULL;
+}
+
+/// \brief Should fail to load the brokenCode
+///
+char *LoadBrokenCodeCGoTest(void *data) {
+  startRuby();
+
+  char *errMesg = loadRubyCode("borkenCode", "this code is broken");
+  cGoTest_NotNil("Should have error message", errMesg);
+  printf("error message: [%s]\n", errMesg);
+  cGoTest_StrContains("Should contain the word broken", errMesg, "broken")
+  cGoTest(
+    "Should not load the brokenCode",
+    ! isRubyCodeLoaded("brokenCode")
+  );
+
   return NULL;
 }

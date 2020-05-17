@@ -72,7 +72,7 @@ void addMimeMapToMetadataObjTest(uint64_t objId) {
   );
 }
 
-/// \brief Test something
+/// \brief GoIPyKernelData_New should return a new object id.
 ///
 char *IPyKernelDataCGoTest(void* data) {
   uint64_t objId = GoIPyKernelData_New();

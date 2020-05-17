@@ -26,7 +26,7 @@ import (
 
   // begin fixture: main
 
-    // Test something
+    // GoIPyKernelData_New should return a new object id.
     //
     // Suite:   main
     // Fixture: main
@@ -35,7 +35,7 @@ import (
       cGoTestSuite("main", "Main (default) TestSuite")
       cGoTestFixture("main", "Main (default) Fixture in Main Suite")
       
-      cGoTestStart("IPyKernelDataCGoTest", "Test something")
+      cGoTestStart("IPyKernelDataCGoTest", "GoIPyKernelData_New should return a new object id.")
       defer cGoTestFinish("IPyKernelDataCGoTest")
 
 
@@ -46,24 +46,44 @@ import (
       return cGoTestPossibleError(C.IPyKernelDataCGoTest(data))
     }
 
-    // no desc
+    // Should fail to load the brokenCode
     //
     // Suite:   main
     // Fixture: main
     //
-    func Go_RubyStateCGoTest() error {
+    func Go_LoadBrokenCodeCGoTest() error {
       cGoTestSuite("main", "Main (default) TestSuite")
       cGoTestFixture("main", "Main (default) Fixture in Main Suite")
       
-      cGoTestStart("RubyStateCGoTest", "no desc")
-      defer cGoTestFinish("RubyStateCGoTest")
+      cGoTestStart("LoadBrokenCodeCGoTest", "Should fail to load the brokenCode")
+      defer cGoTestFinish("LoadBrokenCodeCGoTest")
 
 
       data := C.nullSetup()
 
 
       
-      return cGoTestPossibleError(C.RubyStateCGoTest(data))
+      return cGoTestPossibleError(C.LoadBrokenCodeCGoTest(data))
+    }
+
+    // Should only load the helloWorldCode once
+    //
+    // Suite:   main
+    // Fixture: main
+    //
+    func Go_LoadHelloWorldCodeCGoTest() error {
+      cGoTestSuite("main", "Main (default) TestSuite")
+      cGoTestFixture("main", "Main (default) Fixture in Main Suite")
+      
+      cGoTestStart("LoadHelloWorldCodeCGoTest", "Should only load the helloWorldCode once")
+      defer cGoTestFinish("LoadHelloWorldCodeCGoTest")
+
+
+      data := C.nullSetup()
+
+
+      
+      return cGoTestPossibleError(C.LoadHelloWorldCodeCGoTest(data))
     }
 
   // end fixture: main

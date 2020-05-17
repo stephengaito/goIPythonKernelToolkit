@@ -183,10 +183,10 @@ def Convert2Data(origValue)
   # Now work with the goIPyRuby callbacks to convert this IPyRubyData object 
   # into a goIPyKernel Data object
   #
-  dataObj = IPyKernelData.new(origValue)
+  dataObj = IPyKernelData_New(origValue)
   
   origValue['Data'].each_pair do | aMIMEKey, aValue |
-    dataObj.addData(aMIMEKey, aValue)
+    IPyKernelData_AddData(dataObj, aMIMEKey, aValue)
   end
   origValue['Metadata'].each_pair do | aMIMEKey, aValue |
     #
@@ -198,7 +198,7 @@ def Convert2Data(origValue)
     #
     if aValue.is_a?(Hash) && IPyRubyMIMEMapKeys.include?(aMIMEKey) then
       aValue.each_pair do | aMetaKey, aMetaValue |
-        dataObj.addMetadata(aMIMEKey, aMetaKey.to_s, aMetaValue.to_s)
+        IPyKernelData_AddMetadata(dataObj, aMIMEKey, aMetaKey.to_s, aMetaValue.to_s)
       end
     end
   end
@@ -218,16 +218,12 @@ def MakeLastErrorData(err, errMsg)
 # $_ 	string last read by gets
 # $. 	line number last read by interpreter 
 
-  return {
-    "Data" => {
-      "ename" => "ERROR",
-      "evalue" => err.to_s,
-      "traceback" => [errMsg],
-      "status" => "error"
-    },
-    "Metadata" => {},
-    "Transient" => {}
-  }
+  dataObj = IPyKernelData_New([err, errMsg, "lastErrorData"])
+  IPyKernelData_AddData(dataObj, "ename", "ERROR")
+  IPyKernelData_AddData(dataObj, "evalue", err.to_s)
+  IPyKernelData_AppendTraceback(dataObj, errMsg)
+  IPyKernelData_AddData(dataObj, "status", "error")
+  return dataObj
 end
 
 def IPyRubyEval(aString)

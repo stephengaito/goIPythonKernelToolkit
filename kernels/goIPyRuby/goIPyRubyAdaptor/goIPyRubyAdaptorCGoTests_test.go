@@ -19,7 +19,7 @@ import (
 
   // begin fixture: main
 
-    // Test something
+    // GoIPyKernelData_New should return a new object id.
     //
     // Suite:   main
     // Fixture: main
@@ -28,13 +28,22 @@ import (
       cGoTestMayBeError(t, "IPyKernelDataCGoTest", Go_IPyKernelDataCGoTest())
     }
 
-    // no desc
+    // Should fail to load the brokenCode
     //
     // Suite:   main
     // Fixture: main
     //
-    func Test_RubyStateCGoTest(t *testing.T) {      
-      cGoTestMayBeError(t, "RubyStateCGoTest", Go_RubyStateCGoTest())
+    func Test_LoadBrokenCodeCGoTest(t *testing.T) {      
+      cGoTestMayBeError(t, "LoadBrokenCodeCGoTest", Go_LoadBrokenCodeCGoTest())
+    }
+
+    // Should only load the helloWorldCode once
+    //
+    // Suite:   main
+    // Fixture: main
+    //
+    func Test_LoadHelloWorldCodeCGoTest(t *testing.T) {      
+      cGoTestMayBeError(t, "LoadHelloWorldCodeCGoTest", Go_LoadHelloWorldCodeCGoTest())
     }
 
   // end fixture: main
