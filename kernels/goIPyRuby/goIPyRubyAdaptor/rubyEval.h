@@ -17,4 +17,7 @@ extern int isRubyCodeLoaded(
 
 extern const char *rubyVersion(void);
 
-extern uint64_t evalString(const char* aStr);
+extern uint64_t evalRubyString(
+  const char* evalNameCStr,
+  const char* evalCodeCStr
+);

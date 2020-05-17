@@ -4,9 +4,12 @@ import (
   "fmt"
   "testing"
    "github.com/stretchr/testify/assert"
+   "github.com/davecgh/go-spew/spew"
+   tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
 
 // assertions: https://godoc.org/github.com/stretchr/testify/assert
+// prettyPrint: https://github.com/davecgh/go-spew
 
 func TestRubyState(t *testing.T) {
 
@@ -54,4 +57,23 @@ func TestLoadingIPyRubyDataCode(t *testing.T) {
   assert.NoError(t,
     rubyState.LoadRubyCode("DoesIPyRubyEvalExist", "defined? IPyRubyEval"),
     "IPyRubyEval does not exist")  
+}
+
+func TestEvalRubyString(t *testing.T) {
+  rubyState := CreateRubyState();
+  
+  dataObj := rubyState.GoEvalRubyString(
+    "TestEvalRubyString1",
+    "puts 'Hello TestEvalRubyString1'",
+  )
+  assert.NotNil(t, dataObj, "Should return a  non empty dataOjb")
+  spew.Dump(dataObj)
+
+  dataObj = rubyState.GoEvalRubyString(
+    "TestEvalRubyString2",
+    "a = 'Hello TestEvalRubyString2'",
+  )
+  assert.NotNil(t, dataObj, "Should return a  non empty dataOjb")
+  spew.Dump(tk.TheObjectStore)
+  spew.Dump(dataObj)
 }

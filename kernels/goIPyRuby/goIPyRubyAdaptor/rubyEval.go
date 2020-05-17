@@ -32,6 +32,15 @@ func GoIPyKernelData_New() uint64 {
   return newObjId
 }
 
+// Delete an existing Data object from the IPyKernelStore.
+//
+//export GoIPyKernelData_Delete
+func GoIPyKernelData_Delete(objId uint64) {
+  //fmt.Print("GoIPyKernelData_Delete\n")
+  //fmt.Printf("  objId:       %d\n", objId)
+  tk.TheObjectStore.Delete(objId)
+}
+
 // Add the mimeType/dataValue pair to the Data map of the Data object.
 //
 // Takes the Data object at `objId` from the IPyKernelStore and adds the 
@@ -208,21 +217,42 @@ func (rs *RubyState) GetRubyVersion() string {
 
 // Evaluate the String aGoStr in the (single) Ruby instance.
 //
-func (rs *RubyState) RubyEvaluateString(aGoStr string) tk.Data {
-/*
-  const char* aCStr = C.CString(aGoStr)
-  defer C.free(unsafe.Pointer(aCStr))
+func (rs *RubyState) GoEvalRubyString(
+  rubyCodeName, rubyCodeStr string,
+) *tk.Data {  
+  rubyCodeNameCStr := C.CString(rubyCodeName)
+  defer C.free(unsafe.Pointer(rubyCodeNameCStr))
   
-  returnValue, err := C.evalString(aCStr)
-  if err != nil {
-    // do something
+  rubyCodeCStr := C.CString(rubyCodeStr)
+  defer C.free(unsafe.Pointer(rubyCodeCStr))
+
+  objId := uint64(C.evalRubyString(rubyCodeNameCStr, rubyCodeCStr))
+  if objId == 0 {
+    return &tk.Data{
+      Data: tk.MIMEMap{
+        "ename":     "ERROR",
+        "evalue":    "no return value from evalRubyString",
+        "traceback": []string{ "GoEvalRubyString" },
+        "state":     "error",
+      },
+      Metadata: tk.MIMEMap{},
+      Transient: tk.MIMEMap{},
+    }
   }
-  defer C.freeIPythonReturn(returnValue)
+  dataObj := tk.TheObjectStore.GetLocked(objId).(*tk.Data)
+  tk.TheObjectStore.Unlock(objId)
   
-  return &GOIPythonReturn{
-    MimeType: C.GOString(returnValue.mimeType),
-    Value:    C.GOString(returnValue.value),
+  if dataObj == nil {
+    return &tk.Data{
+      Data: tk.MIMEMap{
+        "ename":     "ERROR",
+        "evalue":    "no data object in the object store",
+        "traceback": []string { "GoEvalRubyString" },
+        "state":     "error",
+      },
+      Metadata: tk.MIMEMap{},
+      Transient: tk.MIMEMap{},
+    }  
   }
-*/
-  return tk.Data{}
+  return dataObj
 }

@@ -26,6 +26,26 @@ import (
 
   // begin fixture: main
 
+    // Should evaluate some ruby code
+    //
+    // Suite:   main
+    // Fixture: main
+    //
+    func Go_EvalRubyStringCGoTest() error {
+      cGoTestSuite("main", "Main (default) TestSuite")
+      cGoTestFixture("main", "Main (default) Fixture in Main Suite")
+      
+      cGoTestStart("EvalRubyStringCGoTest", "Should evaluate some ruby code")
+      defer cGoTestFinish("EvalRubyStringCGoTest")
+
+
+      data := C.nullSetup()
+
+
+      
+      return cGoTestPossibleError(C.EvalRubyStringCGoTest(data))
+    }
+
     // GoIPyKernelData_New should return a new object id.
     //
     // Suite:   main

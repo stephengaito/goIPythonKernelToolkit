@@ -87,5 +87,6 @@ func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
 // Evaluate the code and return the results as a Data object.
 //
 func (adaptor *GoAdaptor) EvaluateCode(code string) (rtnData tk.Data, err error) {
-  return tk.Data{}, nil
+  dataObj := adaptor.rs.GoEvalRubyString(??, code)
+  return dataObj, nil
 }

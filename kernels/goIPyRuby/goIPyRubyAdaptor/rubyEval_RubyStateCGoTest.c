@@ -13,7 +13,8 @@
 char *LoadHelloWorldCodeCGoTest(void *data) {
   startRuby();
 
-  char *errMesg = loadRubyCode("helloWorldCode", "puts 'Hello World!'");
+  char *errMesg = loadRubyCode("helloWorldCode",
+    "puts 'Hello LoadHelloWorldCodeCGoTest!'");
   cGoTest_Nil("Should have no error message", errMesg);
   
   cGoTest(
@@ -48,3 +49,20 @@ char *LoadBrokenCodeCGoTest(void *data) {
 
   return NULL;
 }
+
+/// \brief Should evaluate some ruby code
+///
+char *EvalRubyStringCGoTest(void *data) {
+  startRuby();
+  
+  uint64_t result = evalRubyString(
+    "evalRubyStringCGoTest",
+    "puts 'Hello EvalRubyStringCGoTest!'"
+  );
+  cGoTest_UIntNotEquals(
+    "Should not be the zero object in the object store",
+    result, 0
+  );
+  return NULL;
+}
+

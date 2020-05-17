@@ -301,7 +301,7 @@ static VALUE protectedEvalString(VALUE args) {
   
   return rb_funcall(
     Qnil,
-    rb_intern("eval"),
+    rb_intern("IPyRubyEval"),
     4,
     evalStr,
     Qnil,
@@ -310,24 +310,33 @@ static VALUE protectedEvalString(VALUE args) {
     0
   );
 }
+
 /// \brief Evaluate the string aStr in the TOPLEVEL_BINDING and returns 
 /// any result as a Go Data object located in the IPyKernelStore at the 
 /// returned objId. 
 ///
-uint64_t goIPyRubyEvalString(const char* evalCStr, const char* evalNameCStr) {
+uint64_t evalRubyString(
+  const char* evalNameCStr,
+  const char* evalCodeCStr
+) {
 
-  VALUE evalStr  = rb_str_new_cstr(evalCStr);
   VALUE evalName = rb_str_new_cstr(evalNameCStr);
+  VALUE evalCode = rb_str_new_cstr(evalCodeCStr);
   
   VALUE evalArray = rb_ary_new();
   rb_ary_push(evalArray, evalName);
-  rb_ary_push(evalArray, evalStr);
+  rb_ary_push(evalArray, evalCode);
   
   int loadFailed = 0;
-  uint64_t result = FIX2LONG(rb_protect(protectedLoadRubyCode, evalArray, &loadFailed));
-  if (loadFailed) { 
+  uint64_t result = 
+    FIX2LONG(rb_protect(protectedLoadRubyCode, evalArray, &loadFailed));
+
+  if (loadFailed) {
+    GoIPyKernelData_Delete(result);
+
     VALUE errMesg = rb_errinfo();
     VALUE errStr  = rb_sprintf("%"PRIsVALUE, errMesg);
+
     result = GoIPyKernelData_New();
     GoIPyKernelData_AddData(result,
       "ename", strlen("ename"), "ERROR", strlen("ERROR"));
