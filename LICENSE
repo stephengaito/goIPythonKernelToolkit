@@ -21,6 +21,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------------------------
+
 The image files in the directories:
 
   kernels/goIPyLua/kernel
@@ -34,6 +35,22 @@ project (Lua.org and Ruby-lang.org). See the LICENSE file in these
 directories for details.
 
 ------------------------------------------------------------------------------
+
+The uthash.h file in the kernals/goIPyRuby/goIPyRubyAdaptor directory is 
+being used under its existing "BSD revised" License. See that file or the 
+websites:
+
+             https://troydhanson.github.io/uthash/
+
+             https://github.com/troydhanson/uthash
+
+for details.
+
+The uthash.h file was taken, unmodified, from the github archive (above) on 
+2020-05-18.
+
+------------------------------------------------------------------------------
+
 The files in the:
 
   goIPyKernel

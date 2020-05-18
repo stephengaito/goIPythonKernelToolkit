@@ -118,7 +118,7 @@ type AdaptorImpl interface {
 
   // Evaluate the code and return the results as a Data object.
   //
-  EvaluateCode(code string) (rtnData Data, err error)
+  EvaluateCode(execCount int, code string) (rtnData Data, err error)
 
 }
 
@@ -449,7 +449,7 @@ func (kernel *IPyKernel) HandleExecuteRequest(receipt MsgReceipt) error {
   code = kernel.adaptor.EvaluateRemoveSpecialCommands(outerr, code)
   
 	// eval
-	data, executionErr := kernel.adaptor.EvaluateCode(code)
+	data, executionErr := kernel.adaptor.EvaluateCode(ExecCounter, code)
 
 	// Close and restore the streams.
 	wOut.Close()

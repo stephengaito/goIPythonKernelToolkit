@@ -15,16 +15,13 @@ import (
 
 func TestGoIPyKernelData(t *testing.T) {
   objId := GoIPyKernelData_New()
-  assert.Equalf(t, objId, tk.TheObjectStore.NextId, 
-    "Object id should be %d but is: %d\n",
-    tk.TheObjectStore.NextId,
-    objId,
+  assert.Equal(t, tk.TheObjectStore.NextId, objId,
+    "Object id should NextId",
   )
   
   GoAddMimeMapToDataObjTest(objId)
   
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  tk.TheObjectStore.Unlock(objId) // need to release lock for further GoXXXXTest(s)...
+  anObj := tk.TheObjectStore.Get(objId)
   
   aDataObj := anObj.(*tk.Data)
   assert.NotNil(t, aDataObj.Data["MIMETest"], "Data object missing MIMETest")
@@ -113,18 +110,14 @@ func TestIPyKernelData_New(t *testing.T) {
   assert.NoErrorf(t, err,
     "Could not load file [%s]", codePath)
     
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
-    "Could not load IPyRubyData.rb")
+  _, err = rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode)
+  assert.NoError(t, err, "Could not load IPyRubyData.rb")
  
-  lastId := tk.TheObjectStore.NextId
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("TestIPyKernelData_New", "IPyKernelData_New(nil)"),
-    "Could not call TestIPyKernelData_New")
-  objId := tk.TheObjectStore.NextId
-  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  defer tk.TheObjectStore.Unlock(objId)
+  objId, err := 
+    rubyState.LoadRubyCode("TestIPyKernelData_New", "IPyKernelData_New(nil)")
+  
+  assert.NoError(t, err, "Could not call TestIPyKernelData_New")
+  anObj := tk.TheObjectStore.Get(objId)
   assert.NotNil(t, anObj, "Should have returned an empty Data object interface")
   aDataObj := anObj.(*tk.Data)
   assert.NotNil(t, aDataObj, "Should have returned an empty Data object")
@@ -137,6 +130,7 @@ func TestIPyKernelData_AddData(t *testing.T) {
   rubyCode := `
     anObj = IPyKernelData_New(nil)
     IPyKernelData_AddData(anObj, MIMETypeText, "test text")
+    anObj
   `
   rubyState := CreateRubyState()
   
@@ -145,18 +139,12 @@ func TestIPyKernelData_AddData(t *testing.T) {
   assert.NoErrorf(t, err,
     "Could not load file [%s]", codePath)
     
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
-    "Could not load IPyRubyData.rb")
+  _, err = rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode)
+  assert.NoError(t, err, "Could not load IPyRubyData.rb")
  
-  lastId := tk.TheObjectStore.NextId
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("TestIPyKernelData_AddData", rubyCode),
-    "Could not call TestIPyKernelData_AddData")
-  objId := tk.TheObjectStore.NextId
-  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  defer tk.TheObjectStore.Unlock(objId)
+  objId, err := rubyState.LoadRubyCode("TestIPyKernelData_AddData", rubyCode)
+  assert.NoError(t, err, "Could not call TestIPyKernelData_AddData")
+  anObj := tk.TheObjectStore.Get(objId)
       
   assert.NotNil(t, anObj, "Should have returned an empty Data object interface")
   aDataObj := anObj.(*tk.Data)
@@ -171,6 +159,7 @@ func TestIPyKernelData_AddMetadata(t *testing.T) {
   rubyCode := `
     anObj = IPyKernelData_New(nil)
     IPyKernelData_AddMetadata(anObj, MIMETypeText, "test", "test text")
+    anObj
   `
   rubyState := CreateRubyState()
   
@@ -179,19 +168,13 @@ func TestIPyKernelData_AddMetadata(t *testing.T) {
   assert.NoErrorf(t, err,
     "Could not load file [%s]", codePath)
     
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
-    "Could not load IPyRubyData.rb")
+  _, err = rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode)
+  assert.NoError(t, err, "Could not load IPyRubyData.rb")
  
-  lastId := tk.TheObjectStore.NextId
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("TestIPyKernelData_AddMetadata", rubyCode),
-    "Could not call TestIPyKernelData_AddMetadata")
-  objId := tk.TheObjectStore.NextId
-  //spew.Dump(tk.TheObjectStore)
-  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  defer tk.TheObjectStore.Unlock(objId)
+  objId, err :=
+    rubyState.LoadRubyCode("TestIPyKernelData_AddMetadata", rubyCode)
+  assert.NoError(t, err, "Could not call TestIPyKernelData_AddMetadata")
+  anObj := tk.TheObjectStore.Get(objId)
   
   assert.NotNil(t, anObj, "Should have returned a Data object interface")
   aDataObj := anObj.(*tk.Data)
@@ -229,19 +212,13 @@ func TestMakeLastErrorData(t *testing.T) {
   assert.NoErrorf(t, err,
     "Could not load file [%s]", codePath)
     
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode),
-    "Could not load IPyRubyData.rb")
+  _, err = rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode)
+  assert.NoError(t, err, "Could not load IPyRubyData.rb")
  
-  lastId := tk.TheObjectStore.NextId
-  assert.NoError(t, 
-    rubyState.LoadRubyCode("TestMakeLastErrorData", rubyTestCode),
-    "Could not MakeLastErrorData")
-  objId := tk.TheObjectStore.NextId
-  assert.Equal(t, objId, lastId + 1, "Should have added ONE Data object")
+  objId, err := rubyState.LoadRubyCode("TestMakeLastErrorData", rubyTestCode)
+  assert.NoError(t, err, "Could not MakeLastErrorData")
   
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  defer tk.TheObjectStore.Unlock(objId)
+  anObj := tk.TheObjectStore.Get(objId)
   
   assert.NotNil(t, anObj, "Should have returned a Data object interface")
   aDataObj := anObj.(*tk.Data)

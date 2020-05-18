@@ -56,8 +56,7 @@ func GoIPyKernelData_AddData(
 ) {
   //fmt.Print("GoIPyKernelData_AddData\n")
   //fmt.Printf("  objId:       %d\n", objId)
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  defer tk.TheObjectStore.Unlock(objId)
+  anObj := tk.TheObjectStore.Get(objId)
   
   if anObj != nil {
     aDataObj := anObj.(*tk.Data)
@@ -89,8 +88,7 @@ func GoIPyKernelData_AppendTraceback(
 ) {
   //fmt.Print("GoIPyKernelData_AppemdTraceback\n")
   //fmt.Printf("  objId:       %d\n", objId)
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  defer tk.TheObjectStore.Unlock(objId)
+  anObj := tk.TheObjectStore.Get(objId)
   
   if anObj != nil {
     aDataObj := anObj.(*tk.Data)
@@ -125,8 +123,7 @@ func GoIPyKernelData_AddMetadata(
 ) {
   //fmt.Print("GoIPyKernelData_AddMetadata\n")
   //fmt.Printf("  objId:       %d\n", objId)
-  anObj := tk.TheObjectStore.GetLocked(objId)
-  defer tk.TheObjectStore.Unlock(objId)
+  anObj := tk.TheObjectStore.Get(objId)
   if anObj != nil {
     aDataObj := anObj.(*tk.Data)
     
@@ -159,6 +156,7 @@ type RubyState struct {
 // Creates a running Ruby instance.
 //
 func CreateRubyState() *RubyState {
+  
   C.startRuby()
   return &RubyState{}
 }
@@ -184,19 +182,24 @@ func (rs *RubyState) IsRubyRunning() bool {
 func (rs *RubyState) LoadRubyCode(
   rubyCodeName string,
   rubyCode     string,
-) error {
+) (uint64, error) {
   rubyCodeCStr     := C.CString(rubyCode)
   defer C.free(unsafe.Pointer(rubyCodeCStr))
   rubyCodeNameCStr := C.CString(rubyCodeName)
   defer C.free(unsafe.Pointer(rubyCodeNameCStr))
   
-  errMesgCStr := C.loadRubyCode(rubyCodeNameCStr, rubyCodeCStr)
-  if errMesgCStr != nil {
-    errMesg := C.GoString(errMesgCStr)
-    defer C.free(unsafe.Pointer(errMesgCStr))
-    return errors.New(errMesg)
+  result := C.loadRubyCode(rubyCodeNameCStr, rubyCodeCStr)
+  if result == nil {
+    return 0, errors.New("No LoadRubyCode result structure returned")
   }
-  return nil
+  defer C.FreeLoadRubyCodeReturn(result)
+  
+  if result.errMesg != nil {
+    //errMesg := C.GoString(result.errMesg)
+    errMesg := "silly"
+    return uint64(result.objId), errors.New(errMesg)
+  }
+  return uint64(result.objId), nil
 }
 
 // Returns true if the Ruby code named `rubyCodeName` has already been 
@@ -239,10 +242,9 @@ func (rs *RubyState) GoEvalRubyString(
       Transient: tk.MIMEMap{},
     }
   }
-  dataObj := tk.TheObjectStore.GetLocked(objId).(*tk.Data)
-  tk.TheObjectStore.Unlock(objId)
-  
-  if dataObj == nil {
+
+  storedObj := tk.TheObjectStore.Get(objId)
+  if storedObj == nil {
     return &tk.Data{
       Data: tk.MIMEMap{
         "ename":     "ERROR",
@@ -254,5 +256,5 @@ func (rs *RubyState) GoEvalRubyString(
       Transient: tk.MIMEMap{},
     }  
   }
-  return dataObj
+  return storedObj.(*tk.Data)
 }

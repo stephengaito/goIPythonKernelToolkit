@@ -13,17 +13,21 @@
 char *LoadHelloWorldCodeCGoTest(void *data) {
   startRuby();
 
-  char *errMesg = loadRubyCode("helloWorldCode",
+  LoadRubyCodeReturn *result = loadRubyCode("helloWorldCode",
     "puts 'Hello LoadHelloWorldCodeCGoTest!'");
-  cGoTest_Nil("Should have no error message", errMesg);
+  cGoTest_NotNil_MayFail("Should have returned a result", result);
+  cGoTest_Nil("Should have no error message", result->errMesg);
+  result = FreeLoadRubyCodeReturn(result);
   
   cGoTest(
     "Should load the helloWorldCode",
     isRubyCodeLoaded("helloWorldCode")
   );
 
-  errMesg = loadRubyCode("helloWorldCode", "puts 'Hello World!'");
-  cGoTest_Nil("Should have no error message", errMesg);
+  result = loadRubyCode("helloWorldCode", "puts 'Hello World!'");
+  cGoTest_NotNil_MayFail("Should have returned a result", result);
+  cGoTest_Nil("Should have no error message", result->errMesg);
+  result = FreeLoadRubyCodeReturn(result);
   
   cGoTest(
     "Should load the helloWorldCode",
@@ -38,10 +42,15 @@ char *LoadHelloWorldCodeCGoTest(void *data) {
 char *LoadBrokenCodeCGoTest(void *data) {
   startRuby();
 
-  char *errMesg = loadRubyCode("borkenCode", "this code is broken");
-  cGoTest_NotNil("Should have error message", errMesg);
-  printf("error message: [%s]\n", errMesg);
-  cGoTest_StrContains("Should contain the word broken", errMesg, "broken")
+  LoadRubyCodeReturn *result =
+    loadRubyCode("brokenCode", "this code is broken");
+  cGoTest_NotNil_MayFail("Should have returned a result", result);
+  cGoTest_NotNil("Should have error message", result->errMesg);
+  printf("error message: [%s]\n", result->errMesg);
+  cGoTest_StrContains(
+    "Should contain the word broken",
+    result->errMesg, "broken"
+  )
   cGoTest(
     "Should not load the brokenCode",
     ! isRubyCodeLoaded("brokenCode")

@@ -11,19 +11,32 @@
 
 // assertions: https://godoc.org/github.com/stretchr/testify/assert
 
+// uthash: https://troydhanson.github.io/uthash/userguide.html
+
 // requires sudo apt install ruby-dev
 
+#include <assert.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <ruby.h>
 #include <ruby/version.h>
 #include "_cgo_export.h"
 
 #include "rubyEval.h"
+#define HASH_FUNCTION HASH_FNV
+#include "uthash.h"
 
-//#define DEBUG_Log(aMessage) printf(aMessage)
-//#define DEBUG_Logf(aFormat, aValue) printf(aFormat, aValue)
+#define DEBUG
+#ifdef DEBUG
+#define DEBUG_Log(aMessage) printf(aMessage); fflush(stdout)
+#define DEBUG_Log2(aFormat, aValue) printf(aFormat, aValue); fflush(stdout)
+#define DEBUG_Log3(aFormat, aValue, anotherValue)             \
+  printf(aFormat, aValue, anotherValue); fflush(stdout)
+#else
 #define DEBUG_Log(aMessage) 
-#define DEBUG_Logf(aFormat, aValue)
+#define DEBUG_Log2(aFormat, aValue)
+#define DEBUG_Log3(aFormat, aValue, anotherValue)
+#endif
 
 void Init_IPyKernelData(void); // forward declaration...
 
@@ -36,11 +49,32 @@ void Init_IPyKernelData(void); // forward declaration...
 ///
 static int rubyRunning = 0;
 
+/// \brief We use a PThreads mutex to ensure only one thread uses Ruby at 
+/// any one time. 
+///
+static pthread_mutex_t rubyMutex   = PTHREAD_MUTEX_INITIALIZER;
+
+
+/// \brief the uthash structure to hold the hash table (entries). 
+///
+typedef struct LoadedCodeNames {
+  const char     *codeName;
+  UT_hash_handle  hh;
+} LoadedCodeNames;
+
+/// \brief We use uthash to keep a hash table of all already loaded
+/// RubyCodeNames. This ensures we do not get multiply defined symbol 
+/// errors. 
+///
+static LoadedCodeNames *loadedCodeNames = NULL;
+
 /// \brief Starts running the (single) instance of Ruby.
 ///
 void startRuby() {
   // init_ruby....
+  pthread_mutex_lock(&rubyMutex);
   if (! rubyRunning) {
+    printf("Starting Ruby\n");
     int argc = 0;
     char **argv = 0;
     ruby_sysinit(&argc, &argv);
@@ -51,15 +85,18 @@ void startRuby() {
     Init_IPyKernelData();
     rubyRunning = 1;
   }
+  pthread_mutex_unlock(&rubyMutex);
 }
 
 /// \brief Stops running the (single) Ruby instance.
 ///
 int stopRuby() {
+  pthread_mutex_lock(&rubyMutex);
   if (rubyRunning) {
     rubyRunning = 0;
     return ruby_cleanup(0);
   }
+  pthread_mutex_unlock(&rubyMutex);
   return 0;
 }
 
@@ -69,11 +106,20 @@ int isRubyRunning(void) {
   return (int)rubyRunning;
 }
 
+LoadRubyCodeReturn *FreeLoadRubyCodeReturn(LoadRubyCodeReturn *aReturn) {
+  if (aReturn->errMesg) {
+    free(aReturn->errMesg);
+  }
+  free(aReturn);
+  return NULL;
+}
+
 static VALUE protectedLoadRubyCode(VALUE args) {
   VALUE rubyCodeStr  = rb_ary_pop(args);
   VALUE rubyCodeName = rb_ary_pop(args);
   
-  return rb_funcall(
+  DEBUG_Log("before protectedLoadRubyCode::rb_funcall\n");
+  VALUE result = rb_funcall(
     Qnil,
     rb_intern("eval"),
     4,
@@ -83,44 +129,109 @@ static VALUE protectedLoadRubyCode(VALUE args) {
     LONG2FIX(0),
     0
   );
+  // This will NOT be called IF the eval raises an exception...
+  DEBUG_Log("after protectedLoadRubyCode::rb_funcall\n");
+  return result;
 }
-
-VALUE loadedCodeNames = Qnil; 
 
 /// \brief Load the Ruby code from the string provided
 ///
-char *loadRubyCode(const char *rubyCodeNameCStr, const char *rubyCodeCStr) {
-  if (loadedCodeNames == Qnil) { loadedCodeNames = rb_hash_new(); }
+LoadRubyCodeReturn *loadRubyCode(
+  const char *rubyCodeNameCStr,
+  const char *rubyCodeCStr
+) {
+  DEBUG_Log("START loadRubyCode\n");
+  DEBUG_Log2(" rubyCodeName: %s\n", rubyCodeNameCStr);
+  //DEBUG_Log2("     rubyCode: %s\n", rubyCodeCStr);
 
-  VALUE rubyCodeStr  = rb_str_new_cstr(rubyCodeCStr);
-  VALUE rubyCodeName = rb_str_new_cstr(rubyCodeNameCStr);
-  VALUE isLoaded     = rb_hash_aref(loadedCodeNames, rubyCodeName);
-  if (isLoaded == Qtrue) { return 0; }
+  pthread_mutex_lock(&rubyMutex);
+
   
-  VALUE codeArray = rb_ary_new();
-  rb_ary_push(codeArray, rubyCodeName);
-  rb_ary_push(codeArray, rubyCodeStr);
+  LoadRubyCodeReturn *returnStruct = calloc(1, sizeof(LoadRubyCodeReturn));
+  DEBUG_Log2("          returnStruct: %p\n", returnStruct);
+  DEBUG_Log2("   returnStruct->objId: %ld\n", returnStruct->objId);
+  DEBUG_Log2(" returnStruct->errMesg: %s\n", returnStruct->errMesg);
+
+  LoadedCodeNames *foundCodeName = NULL;
+  DEBUG_Log3(
+    "Looking for [%s] in uthash %p in loadRubyCode\n",
+    rubyCodeNameCStr,
+    loadedCodeNames
+  );
+  HASH_FIND_STR(loadedCodeNames, rubyCodeNameCStr, foundCodeName);
+  if (!foundCodeName) {
+    //
+    // this code has not yet been loaded... so load it...
+    //
+    DEBUG_Log2("Need to load: %s\n", rubyCodeNameCStr);
+    VALUE rubyCodeName = rb_str_new_cstr(rubyCodeNameCStr);
+    VALUE rubyCodeStr  = rb_str_new_cstr(rubyCodeCStr);
+    VALUE codeArray = rb_ary_new();
+    DEBUG_Log2("rubyCodeName: %ld\n", rubyCodeName);
+    DEBUG_Log2(" rubyCodeStr: %ld\n", rubyCodeStr);
+    DEBUG_Log2("   codeArray: %ld\n", codeArray);
+    rb_ary_push(codeArray, rubyCodeName);
+    rb_ary_push(codeArray, rubyCodeStr);
   
-  int loadFailed = 0;
-  VALUE result = rb_protect(protectedLoadRubyCode, codeArray, &loadFailed);
-  if (loadFailed) { 
-    VALUE errMesg = rb_errinfo();
-    VALUE errStr  = rb_sprintf("%"PRIsVALUE, errMesg);
-    
-    DEBUG_Logf("%s", StringValueCStr(errStr));
-    return strndup(StringValuePtr(errStr), RSTRING_LEN(errStr));
+    DEBUG_Log("Before rb_protect\n");
+    int loadFailed = 0;
+    VALUE result = rb_protect(protectedLoadRubyCode, codeArray, &loadFailed);
+    DEBUG_Log2("After rb_protect     result: %ld\n", result);
+    DEBUG_Log2("After rb_protect loadFailed: %d\n", loadFailed);
+    if (loadFailed) {
+      DEBUG_Log("Load failed\n");
+      VALUE errMesg = rb_errinfo();
+      DEBUG_Log2("errMesg: %ld\n", errMesg);
+      VALUE errStr  = rb_sprintf("%"PRIsVALUE, errMesg);
+      DEBUG_Log2("errStr: %ld\n", errStr);
+      DEBUG_Log2("%s", StringValueCStr(errStr));
+      returnStruct->errMesg = 
+        strndup(StringValuePtr(errStr), RSTRING_LEN(errStr));
+    } else {
+      DEBUG_Log3(
+        "adding [%s] to uthash %p in loadRubyCode\n", 
+        rubyCodeNameCStr, 
+        loadedCodeNames
+      );
+      LoadedCodeNames *newCodeName = calloc(1, sizeof(LoadedCodeNames));
+      assert(newCodeName);
+      newCodeName->codeName = strdup(rubyCodeNameCStr);
+      HASH_ADD_STR(loadedCodeNames, codeName, newCodeName);
+    }
+    DEBUG_Log2("result %ld\n", result);
+    if (RB_FIXNUM_P(result)) {
+      returnStruct->objId = FIX2LONG(result);
+    }
+    DEBUG_Log2("Finished loading: %s\n", rubyCodeNameCStr);
+  } else {
+    DEBUG_Log2("Found [%s] in loadRubyCode\n", rubyCodeNameCStr);
   }
-  rb_hash_aset(loadedCodeNames, rubyCodeName, Qtrue);
-  return 0;
+  pthread_mutex_unlock(&rubyMutex);
+
+  DEBUG_Log("FINISHED loadRubyCode\n");
+  return returnStruct;
 }
 
 int isRubyCodeLoaded(const char *rubyCodeNameCStr) {
-  if (loadedCodeNames == Qnil) { loadedCodeNames = rb_hash_new(); }
+  int result = 0;
+  
+  pthread_mutex_lock(&rubyMutex);
 
-  VALUE rubyCodeName = rb_str_new_cstr(rubyCodeNameCStr);
-  VALUE isLoaded     = rb_hash_aref(loadedCodeNames, rubyCodeName);
-  if (isLoaded == Qtrue) { return 1; }
-  return 0;
+  LoadedCodeNames *foundCodeName = NULL;
+  DEBUG_Log3(
+    "Looking for [%s] in uthash %p in isRubyCodeLoaded\n",
+    rubyCodeNameCStr,
+    loadedCodeNames
+  );
+  HASH_FIND_STR(loadedCodeNames, rubyCodeNameCStr, foundCodeName);
+  if (foundCodeName) { 
+    DEBUG_Log2("Found [%s] in isRubyCodeLoaded\n", rubyCodeNameCStr);
+    result = 1;
+  }
+
+  pthread_mutex_unlock(&rubyMutex);
+
+  return result ;
 }
 
 #ifndef RUBY_API_VERSION
@@ -141,7 +252,7 @@ const char *rubyVersion(void) {
 VALUE IPyKernelData_New(VALUE recv) {
   DEBUG_Log("IPyKernelData_New\n");
   uint64_t newObjId = GoIPyKernelData_New();
-  DEBUG_Logf("  objId %ld\n", newObjId);
+  DEBUG_Log2("  objId %ld\n", newObjId);
   return  LONG2FIX(newObjId);
 }
 
@@ -171,19 +282,19 @@ VALUE IPyKernelData_AddData(
   if (FIXNUM_P(objIdObj)) {
     objId     = NUM2LONG(objIdObj);
   } else return Qnil;
-  DEBUG_Logf("  objId: %ld\n", objId);
+  DEBUG_Log2("  objId: %ld\n", objId);
   //
   if (RSTRING_P(mimeTypeObj)) {
     mimeType    = StringValuePtr(mimeTypeObj);
     mimeTypeLen = RSTRING_LEN(mimeTypeObj);
   } else return Qnil;
-  DEBUG_Logf("  mimeType: %s\n", mimeType);
+  DEBUG_Log2("  mimeType: %s\n", mimeType);
   //
   if (RSTRING_P(dataValueObj)) {
     dataValue    = StringValuePtr(dataValueObj);
     dataValueLen = RSTRING_LEN(dataValueObj);
   } else return Qnil;
-  DEBUG_Logf("  dataValue: %s\n", dataValue);
+  DEBUG_Log2("  dataValue: %s\n", dataValue);
 
   GoIPyKernelData_AddData(objId, mimeType, mimeTypeLen, dataValue, dataValueLen);
   return Qnil;
@@ -212,13 +323,13 @@ VALUE IPyKernelData_AppendTraceback(
   if (FIXNUM_P(objIdObj)) {
     objId     = NUM2LONG(objIdObj);
   } else return Qnil;
-  DEBUG_Logf("  objId: %ld\n", objId);
+  DEBUG_Log2("  objId: %ld\n", objId);
   //
   if (RSTRING_P(tracebackValueObj)) {
     tracebackValue    = StringValuePtr(tracebackValueObj);
     tracebackValueLen = RSTRING_LEN(tracebackValueObj);
   } else return Qnil;
-  DEBUG_Logf("  tracebackValue: %s\n", tracebackValue);
+  DEBUG_Log2("  tracebackValue: %s\n", tracebackValue);
 
   GoIPyKernelData_AppendTraceback(objId, tracebackValue, tracebackValueLen);
   return Qnil;
@@ -254,25 +365,25 @@ VALUE IPyKernelData_AddMetadata(
   if (FIXNUM_P(objIdObj)) {
     objId     = NUM2LONG(objIdObj);
   } else return Qnil;
-  DEBUG_Logf("  objId: %ld\n", objId);
+  DEBUG_Log2("  objId: %ld\n", objId);
   //
   if (RSTRING_P(mimeTypeObj)) {
     mimeType    = StringValuePtr(mimeTypeObj); 
     mimeTypeLen = RSTRING_LEN(mimeTypeObj);
   } else return Qnil;
-  DEBUG_Logf("  mimeType: %s\n", mimeType);
+  DEBUG_Log2("  mimeType: %s\n", mimeType);
   //
   if (RSTRING_P(metaKeyObj)) {
     metaKey    = StringValuePtr(metaKeyObj);
     metaKeyLen = RSTRING_LEN(metaKeyObj);
   } else return Qnil;
-  DEBUG_Logf("  metaKey: %s\n", metaKey);
+  DEBUG_Log2("  metaKey: %s\n", metaKey);
   //
   if (RSTRING_P(dataValueObj)) {
     dataValue    = StringValuePtr(dataValueObj);
     dataValueLen = RSTRING_LEN(dataValueObj);
   } else return Qnil;
-  DEBUG_Logf("  dataValue: %s\n", dataValue);
+  DEBUG_Log2("  dataValue: %s\n", dataValue);
   
   GoIPyKernelData_AddMetadata(
     objId,
@@ -298,8 +409,8 @@ void Init_IPyKernelData(void) {
 static VALUE protectedEvalString(VALUE args) {
   VALUE evalStr  = rb_ary_pop(args);
   VALUE evalName = rb_ary_pop(args);
-  
-  return rb_funcall(
+  DEBUG_Log("before protectedEvalString::rb_funcall\n");
+  VALUE result = rb_funcall(
     Qnil,
     rb_intern("IPyRubyEval"),
     4,
@@ -309,6 +420,9 @@ static VALUE protectedEvalString(VALUE args) {
     LONG2FIX(0),
     0
   );
+  // This will NOT be called IF the IPyRubyEval raises an exception...
+  DEBUG_Log("after protectedEvalString::rb_funcall\n");
+  return result;
 }
 
 /// \brief Evaluate the string aStr in the TOPLEVEL_BINDING and returns 
@@ -319,6 +433,8 @@ uint64_t evalRubyString(
   const char* evalNameCStr,
   const char* evalCodeCStr
 ) {
+  DEBUG_Log2("Starting evalRubyString on [%s]\n", evalNameCStr);
+  pthread_mutex_lock(&rubyMutex);
 
   VALUE evalName = rb_str_new_cstr(evalNameCStr);
   VALUE evalCode = rb_str_new_cstr(evalCodeCStr);
@@ -327,10 +443,14 @@ uint64_t evalRubyString(
   rb_ary_push(evalArray, evalName);
   rb_ary_push(evalArray, evalCode);
   
+  DEBUG_Log("Before rb_protect\n");
   int loadFailed = 0;
-  uint64_t result = 
-    FIX2LONG(rb_protect(protectedLoadRubyCode, evalArray, &loadFailed));
-
+  uint64_t result = 0;
+  VALUE rbResult = rb_protect(protectedEvalString, evalArray, &loadFailed);
+  if (RB_FIXNUM_P(rbResult)) { result = FIX2LONG(rbResult); }
+  DEBUG_Log2("After rb_protect   rbResult: %ld\n", rbResult);
+  DEBUG_Log2("After rb_protect     result: %ld\n", result);
+  DEBUG_Log2("After rb_protect loadFailed: %d\n", loadFailed);  
   if (loadFailed) {
     GoIPyKernelData_Delete(result);
 
@@ -348,6 +468,9 @@ uint64_t evalRubyString(
     GoIPyKernelData_AddData(result,
       "status", strlen("status"), "error", strlen("status"));
   }
+  
+  pthread_mutex_unlock(&rubyMutex);
+  DEBUG_Log2("Finished evalRubyString on [%s]\n", evalNameCStr);
   return result;
 }
 

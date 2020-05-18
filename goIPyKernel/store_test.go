@@ -18,8 +18,7 @@ func TestTheObjectStore(t *testing.T) {
   assert.Equal(t, anObjId, uint64(1), "ObjId is not one")
   
   // get that object
-  anObj := TheObjectStore.GetLocked(anObjId)
-  defer TheObjectStore.Unlock(anObjId)
+  anObj := TheObjectStore.Get(anObjId)
   
   assert.NotNil(t, anObj, "anObj is nil")
   aStr := anObj.(string)
@@ -29,7 +28,7 @@ func TestTheObjectStore(t *testing.T) {
   TheObjectStore.Delete(anObjId)
 
   // show that that object no longer exists
-  anObj = TheObjectStore.GetLocked(anObjId)
+  anObj = TheObjectStore.Get(anObjId)
   assert.Nil(t, anObj, "anObj is not nil")
   
   // show that we can delete twice 

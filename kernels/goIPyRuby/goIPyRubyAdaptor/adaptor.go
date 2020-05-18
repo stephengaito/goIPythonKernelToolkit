@@ -86,7 +86,12 @@ func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
 
 // Evaluate the code and return the results as a Data object.
 //
-func (adaptor *GoAdaptor) EvaluateCode(code string) (rtnData tk.Data, err error) {
-  dataObj := adaptor.rs.GoEvalRubyString(??, code)
+func (adaptor *GoAdaptor) EvaluateCode(
+  execCounter int,
+  code string,
+) (rtnData *tk.Data, err error) {
+  execCounterStr := fmt.Sprintf("ec: %d", execCounter)
+  
+  dataObj := adaptor.Ruby.GoEvalRubyString(execCounterStr, code)
   return dataObj, nil
 }

@@ -7,35 +7,45 @@ someRubyCode = <<END_CODE
 
 require 'pp'
 
-MakeFileData("silly", "IPyRubyData.rb")
+puts 'Hello TestEvalRubyString1'
+a =  'Hello TestEvalRubyString2'
+raise("raising silly")
 
 END_CODE
 
 ###############################################################
 # Start by mocking the IPyKernelData code used by Convert2Data
 
-class IPyKernelData
 
-  def initialize(aDataValue)
-    puts "--------------IPyKernelData::new---------------------"
-    pp aDataValue
-    puts "-----------------------------------------------------"
-  end
+def IPyKernelData_New(aDataValue)
+  puts "--------------IPyKernelData::new---------------------"
+  pp aDataValue
+  puts "-----------------------------------------------------"
+  return 1
+end
 
-  def addData(aMIMEKey, aValue)
-    puts "--------------IPyKernelData::addData-----------------"
-    pp aMIMEKey
-    pp aValue
-    puts "-----------------------------------------------------"
-  end
+def IPyKernelData_AddData(objId, aMIMEKey, aValue)
+  puts "--------------IPyKernelData::addData-----------------"
+  pp objId
+  pp aMIMEKey
+  pp aValue
+  puts "-----------------------------------------------------"
+end
   
-  def addMetadata(aMIMEKey, aMetaKey, aMetaValue)
-    puts "--------------IPyKernelData::addMetadata-------------"
-    pp aMIMEKey
-    pp aMetaKey
-    pp aMetaValue
-    puts "-----------------------------------------------------"
-  end
+def IPyKernelData_AppendTraceback(objId, aValue)
+  puts "--------------IPyKernelData::AppendTraceback---------"
+  pp objId
+  pp aValue
+  puts "-----------------------------------------------------"
+end
+
+def IPyKernelData_AddMetadata(objId, aMIMEKey, aMetaKey, aMetaValue)
+  puts "--------------IPyKernelData::addMetadata-------------"
+  pp objId
+  pp aMIMEKey
+  pp aMetaKey
+  pp aMetaValue
+  puts "-----------------------------------------------------"
 end
 
 system("reset")

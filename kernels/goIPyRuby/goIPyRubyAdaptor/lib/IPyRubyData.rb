@@ -150,6 +150,10 @@ def MakeSVGData(someSVG)
   return MakeData(MIMETypeSVG, someSVG.to_s)
 end
 
+def MakeTextData(someText)
+  return MakeData(MIMETypeText, someText.to_s)
+end
+
 def MakeData(mimeType, data)
   textData = data
   textData = data.pretty_inspect.chomp unless data.is_a?(String)
@@ -227,12 +231,14 @@ def MakeLastErrorData(err, errMsg)
 end
 
 def IPyRubyEval(aString)
+  puts "Hello from IPyRubyEval"
   evalResult = begin
     TOPLEVEL_BINDING.eval(aString)
   rescue
     MakeLastErrorData($!, "TOPLEVEL_BINDING.eval FAILED")
   end
-  
+  require 'pp'
+  pp evalResult
   begin
     return Convert2Data(evalResult)
   rescue
