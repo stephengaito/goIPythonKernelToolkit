@@ -44,36 +44,6 @@ type MsgReceipt struct {
 	Sockets    SocketGroup
 }
 
-// MIMEMap holds data that can be presented in multiple formats. The keys are MIME types
-// and the values are the data formatted with respect to its MIME type.
-// All maps should contain at least a "text/plain" representation with a string value.
-type MIMEMap = map[string]interface{}
-
-// Support an interface similar - but not identical - to the IPython 
-// (canonical Jupyter kernel). See 
-// http://ipython.readthedocs.io/en/stable/api/generated/IPython.display.html#IPython.display.display 
-// for a good overview of the support types. 
-//
-const (
-	MIMETypeHTML       = "text/html"
-	MIMETypeJavaScript = "application/javascript"
-	MIMETypeJPEG       = "image/jpeg"
-	MIMETypeJSON       = "application/json"
-	MIMETypeLatex      = "text/latex"
-	MIMETypeMarkdown   = "text/markdown"
-	MIMETypePNG        = "image/png"
-	MIMETypePDF        = "application/pdf"
-	MIMETypeSVG        = "image/svg+xml"
-	MIMETypeText       = "text/plain"
-)
-
-// Data is the exact structure returned to Jupyter.
-// It allows to fully specify how a value should be displayed.
-type Data = struct {
-	Data      MIMEMap
-	Metadata  MIMEMap
-	Transient MIMEMap
-}
 
 // InvalidSignatureError is returned when the signature on a received message does not
 // validate.

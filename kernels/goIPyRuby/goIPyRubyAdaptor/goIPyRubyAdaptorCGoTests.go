@@ -46,26 +46,6 @@ import (
       return cGoTestPossibleError(C.EvalRubyStringCGoTest(data))
     }
 
-    // GoIPyKernelData_New should return a new object id.
-    //
-    // Suite:   main
-    // Fixture: main
-    //
-    func Go_IPyKernelDataCGoTest() error {
-      cGoTestSuite("main", "Main (default) TestSuite")
-      cGoTestFixture("main", "Main (default) Fixture in Main Suite")
-      
-      cGoTestStart("IPyKernelDataCGoTest", "GoIPyKernelData_New should return a new object id.")
-      defer cGoTestFinish("IPyKernelDataCGoTest")
-
-
-      data := C.nullSetup()
-
-
-      
-      return cGoTestPossibleError(C.IPyKernelDataCGoTest(data))
-    }
-
     // Should fail to load the brokenCode
     //
     // Suite:   main

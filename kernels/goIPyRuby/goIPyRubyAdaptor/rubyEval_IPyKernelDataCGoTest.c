@@ -106,15 +106,3 @@ void addMimeMapToMetadataObjTest(uint64_t objId) {
     dataValue, strlen(dataValue)
   );
 }
-
-/// \brief GoIPyKernelData_New should return a new object id.
-///
-char *IPyKernelDataCGoTest(void* data) {
-  uint64_t objId = GoIPyKernelData_New();
-  cGoTest_UIntEquals(
-    "objId should be TheObjectStore.NextId",
-    objId,
-    1
-  );
-  return NULL;
-}

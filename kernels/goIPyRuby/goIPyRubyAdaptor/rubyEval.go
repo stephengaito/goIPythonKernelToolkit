@@ -8,10 +8,11 @@ package goIPyRubyAdaptor
 import "C"
 
 import (
-  "unsafe"
   "errors"
   //"fmt"
+  "unsafe"
   
+  //"github.com/davecgh/go-spew/spew"
   tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
 
@@ -23,11 +24,7 @@ import (
 //export GoIPyKernelData_New
 func GoIPyKernelData_New() uint64 {
   //fmt.Print("GoIPyKernelData_New\n")
-  newObjId := tk.TheObjectStore.Store(&tk.Data{
-    Data:      make(tk.MIMEMap),
-    Metadata:  make(tk.MIMEMap),
-    Transient: make(tk.MIMEMap),
-  })
+  newObjId := tk.StoreData_New()
   //fmt.Printf("  objId:       %d\n", newObjId)
   return newObjId
 }
@@ -38,7 +35,7 @@ func GoIPyKernelData_New() uint64 {
 func GoIPyKernelData_Delete(objId uint64) {
   //fmt.Print("GoIPyKernelData_Delete\n")
   //fmt.Printf("  objId:       %d\n", objId)
-  tk.TheObjectStore.Delete(objId)
+  tk.StoreData_Delete(objId)
 }
 
 // Add the mimeType/dataValue pair to the Data map of the Data object.
@@ -56,22 +53,16 @@ func GoIPyKernelData_AddData(
 ) {
   //fmt.Print("GoIPyKernelData_AddData\n")
   //fmt.Printf("  objId:       %d\n", objId)
-  anObj := tk.TheObjectStore.Get(objId)
-  
-  if anObj != nil {
-    aDataObj := anObj.(*tk.Data)
-    
-    mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
-    //fmt.Printf("  mimeType:  %s", mimeType)
-    if mimeType == tk.MIMETypePNG || mimeType == tk.MIMETypeJPEG {
-      dataValue := C.GoBytes(unsafe.Pointer(dataValuePtr), dataValueLen)
-      //fmt.Printf("  dataValue: %s\n", dataValue)
-      aDataObj.Data[mimeType] = dataValue
-    } else {
-      dataValue := C.GoStringN(dataValuePtr, dataValueLen)
-      //fmt.Printf("  dataValue: %s\n", dataValue)
-      aDataObj.Data[mimeType] = dataValue
-    }
+  mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
+  //fmt.Printf("  mimeType:  %s", mimeType)
+  if mimeType == tk.MIMETypePNG || mimeType == tk.MIMETypeJPEG {
+    dataValue := C.GoBytes(unsafe.Pointer(dataValuePtr), dataValueLen)
+    //fmt.Printf("  dataValue: %s\n", dataValue)
+    tk.StoreData_AddBytesData(objId, mimeType, dataValue)
+  } else {
+    dataValue := C.GoStringN(dataValuePtr, dataValueLen)
+    //fmt.Printf("  dataValue: %s\n", dataValue)
+    tk.StoreData_AddStringData(objId, mimeType, dataValue)
   }
 }
 
@@ -88,22 +79,9 @@ func GoIPyKernelData_AppendTraceback(
 ) {
   //fmt.Print("GoIPyKernelData_AppemdTraceback\n")
   //fmt.Printf("  objId:       %d\n", objId)
-  anObj := tk.TheObjectStore.Get(objId)
-  
-  if anObj != nil {
-    aDataObj := anObj.(*tk.Data)
     
-    tracebackValue := C.GoStringN(tracebackValuePtr, tracebackValueLen)
-    if aDataObj.Data["traceback"] == nil {
-      aDataObj.Data["traceback"] = make([]string, 0)
-    }
-    tracebackSlice := aDataObj.Data["traceback"].([]string)    
-    aDataObj.Data["traceback"] = 
-      append(tracebackSlice, tracebackValue)
-    
-    //fmt.Printf("  tracebackValue: %s\n", tracebackValue)
-    //fmt.Printf("  tracebackSlice: %s\n", aDataObj.Data["traceback"])
-  }
+  tracebackValue := C.GoStringN(tracebackValuePtr, tracebackValueLen)
+  tk.StoreData_AppendTraceback(objId, tracebackValue)
 }
 
 // Add the mimeType/metaKey/dataValue triple to the Metadata map of the Data object.
@@ -123,26 +101,15 @@ func GoIPyKernelData_AddMetadata(
 ) {
   //fmt.Print("GoIPyKernelData_AddMetadata\n")
   //fmt.Printf("  objId:       %d\n", objId)
-  anObj := tk.TheObjectStore.Get(objId)
-  if anObj != nil {
-    aDataObj := anObj.(*tk.Data)
     
-    mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
-    
-    if aDataObj.Metadata[mimeType] == nil {
-      aDataObj.Metadata[mimeType] = make(tk.MIMEMap)
-    }
-    aMimeMap  := aDataObj.Metadata[mimeType].(tk.MIMEMap)
-    
-    metaKey   := C.GoStringN(metaKeyPtr, metaKeyLen)
-    dataValue := C.GoStringN(dataValuePtr, dataValueLen)
+  mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
+  metaKey   := C.GoStringN(metaKeyPtr, metaKeyLen)
+  dataValue := C.GoStringN(dataValuePtr, dataValueLen)
 
-    //fmt.Printf("  mimeType:  %s\n", mimeType)
-    //fmt.Printf("  metaKey:   %s\n", metaKey)
-    //fmt.Printf("  dataValue: %s\n", dataValue)
-    
-    aMimeMap[metaKey] = dataValue
-  }
+  //fmt.Printf("  mimeType:  %s\n", mimeType)
+  //fmt.Printf("  metaKey:   %s\n", metaKey)
+  //fmt.Printf("  dataValue: %s\n", dataValue)
+  tk.StoreData_AddMetadata(objId, mimeType, metaKey, dataValue)
 }
 
 // A representation of the Ruby state.
@@ -247,8 +214,8 @@ func (rs *RubyState) GoEvalRubyString(
     }
   }
 
-  storedObj := tk.TheObjectStore.Get(objId)
-  if storedObj == nil {
+  anObj := tk.TheObjectStore.Get(objId)
+  if anObj == nil {
     return &tk.Data{
       Data: tk.MIMEMap{
         "ename":     "ERROR",
@@ -260,5 +227,12 @@ func (rs *RubyState) GoEvalRubyString(
       Transient: tk.MIMEMap{},
     }  
   }
-  return storedObj.(*tk.Data)
+  syncedObj := anObj.(*tk.SyncedData)
+  syncedObj.Mutex.RLock()
+  defer syncedObj.Mutex.RUnlock()
+  
+  //spew.Dump(syncedObj.TKData)
+  newDataObj := syncedObj.TKData.DeepCopy()
+  //spew.Dump(newDataObj)
+  return &newDataObj
 }

@@ -28,8 +28,6 @@ extern void *nullSetup(void);
 
     extern char *EvalRubyStringCGoTest(void *data);
 
-    extern char *IPyKernelDataCGoTest(void *data);
-
     extern char *LoadBrokenCodeCGoTest(void *data);
 
     extern char *LoadHelloWorldCodeCGoTest(void *data);

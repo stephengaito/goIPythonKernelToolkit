@@ -28,15 +28,6 @@ import (
       cGoTestMayBeError(t, "EvalRubyStringCGoTest", Go_EvalRubyStringCGoTest())
     }
 
-    // GoIPyKernelData_New should return a new object id.
-    //
-    // Suite:   main
-    // Fixture: main
-    //
-    func Test_IPyKernelDataCGoTest(t *testing.T) {      
-      cGoTestMayBeError(t, "IPyKernelDataCGoTest", Go_IPyKernelDataCGoTest())
-    }
-
     // Should fail to load the brokenCode
     //
     // Suite:   main
