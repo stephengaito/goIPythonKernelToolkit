@@ -5,7 +5,7 @@ import (
   "testing"
    "github.com/stretchr/testify/assert"
    //"github.com/davecgh/go-spew/spew"
-   //tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
+   tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
 
 // assertions: https://godoc.org/github.com/stretchr/testify/assert
@@ -63,38 +63,40 @@ func TestEvalRubyString(t *testing.T) {
     "TestEvalRubyString1",
     "puts 'Hello TestEvalRubyString1'",
   )
-  assert.NotNil(t, dataObj, "Should return a  non empty dataOjb")
-  assert.NotNil(t, dataObj.Data["evalue"], "Should return an error")
-  assert.Equal(t, dataObj.Data["evalue"], 
-    "no return value from evalRubyString",
+  assert.NotNil(t, dataObj, "Should return a non empty dataOjb")
+  //spew.Dump(dataObj)
+  assert.NotNil(t, dataObj.Data[tk.MIMETypeText],
+    "Should return a MIMETypeText error")
+  assert.Equal(t, dataObj.Data[tk.MIMETypeText], "",
     "Should return correct error report",
   );
-  assert.NotNil(t, dataObj.Data["state"], "Should be an error obj")
-  assert.Equal(t, dataObj.Data["state"], "error", 
-    "Should return correct error report",
-  )
-  assert.NotNil(t, dataObj.Data["ename"], "Should be an error obj")
-  assert.Equal(t, dataObj.Data["ename"], "ERROR",
-    "Should return correct error report",
-  )
-  assert.NotNil(t, dataObj.Data["traceback"], "Should be an error obj")
-  assert.Equal(t, dataObj.Data["traceback"].([]string)[0], "GoEvalRubyString",
-    "Should return correct error report",
-  )
-  //spew.Dump(dataObj)
 
   dataObj = rubyState.GoEvalRubyString(
     "TestEvalRubyString2",
     "a = 'Hello TestEvalRubyString2'",
   )
-  assert.NotNil(t, dataObj, "Should return a  non empty dataOjb")
-  assert.NotNil(t, dataObj.Data["evalue"], "Should return an error")
-  assert.Equal(t, dataObj.Data["evalue"], 
-    "no return value from evalRubyString",
+  assert.NotNil(t, dataObj, "Should return a non empty dataOjb")
+  //spew.Dump(dataObj)
+    assert.NotNil(t, dataObj.Data[tk.MIMETypeText],
+    "Should return a MIMETypeText error")
+  assert.Equal(t, dataObj.Data[tk.MIMETypeText],
+    "Hello TestEvalRubyString2",
     "Should return correct error report",
   );
-  assert.NotNil(t, dataObj.Data["state"], "Should be an error obj")
-  assert.Equal(t, dataObj.Data["state"], "error", 
+
+  dataObj = rubyState.GoEvalRubyString(
+    "TestEvalRubyString3",
+    "raise('raised TestEvalRubyString3')",
+  )
+  assert.NotNil(t, dataObj, "Should return a non empty dataOjb")
+  //spew.Dump(dataObj)
+  assert.NotNil(t, dataObj.Data["evalue"], "Should return an error")
+  assert.Equal(t, dataObj.Data["evalue"], 
+    "raised TestEvalRubyString3\nin line: (0)\nraise('raised TestEvalRubyString3')",
+    "Should return correct error report",
+  );
+  assert.NotNil(t, dataObj.Data["status"], "Should be an error obj")
+  assert.Equal(t, dataObj.Data["status"], "error", 
     "Should return correct error report",
   )
   assert.NotNil(t, dataObj.Data["ename"], "Should be an error obj")
@@ -102,11 +104,35 @@ func TestEvalRubyString(t *testing.T) {
     "Should return correct error report",
   )
   assert.NotNil(t, dataObj.Data["traceback"], "Should be an error obj")
-  assert.Equal(t, dataObj.Data["traceback"].([]string)[0], "GoEvalRubyString",
+  assert.Equal(t, dataObj.Data["traceback"].([]string)[0],
+    "IPyRuby kernel evaluation of Ruby code FAILED",
     "Should return correct error report",
   )
-  //spew.Dump(tk.TheObjectStore)
+
+  dataObj = rubyState.GoEvalRubyString(
+    "TestEvalRubyString3",
+    "this code should not compile",
+  )
+  assert.NotNil(t, dataObj, "Should return a non empty dataOjb")
   //spew.Dump(dataObj)
+  assert.NotNil(t, dataObj.Data["evalue"], "Should return an error")
+  assert.Equal(t, dataObj.Data["evalue"], 
+    "<main>: syntax error, unexpected tIDENTIFIER, expecting '('\nthis code should not compile\n                     ^~~~~~~",
+    "Should return correct error report",
+  );
+  assert.NotNil(t, dataObj.Data["status"], "Should be an error obj")
+  assert.Equal(t, dataObj.Data["status"], "error", 
+    "Should return correct error report",
+  )
+  assert.NotNil(t, dataObj.Data["ename"], "Should be an error obj")
+  assert.Equal(t, dataObj.Data["ename"], "ERROR",
+    "Should return correct error report",
+  )
+  assert.NotNil(t, dataObj.Data["traceback"], "Should be an error obj")
+  assert.Equal(t, dataObj.Data["traceback"].([]string)[0],
+    "IPyRuby kernel evaluation of Ruby code FAILED",
+    "Should return correct error report",
+  )
 }
 
 func TestIPyRubyEval(t *testing.T) {

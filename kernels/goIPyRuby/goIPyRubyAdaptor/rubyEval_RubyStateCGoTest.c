@@ -1,6 +1,7 @@
 // +buid cGoTests
 
-// Some tests of the Ruby interface using cGoTests
+/// \file
+/// \brief Some tests of the Ruby interface using cGoTests
 
 #include <ruby.h>
 #include "_cgo_export.h"

@@ -1,5 +1,9 @@
 // ANSI-C go<->ruby wrapper (Header)
 
+/// \file
+/// \brief This ANSI-C header file provides the ANSI-C based interface to 
+/// the Ruby library. 
+
 #ifndef RUBY_EVAL_H
 #define RUBY_EVAL_H
 
@@ -11,7 +15,7 @@ extern int isRubyRunning(void);
 
 typedef struct LoadRubyCodeReturn_struct {
   char     *errMesg;
-  uint64_t  objId;
+  int64_t   objId;
 } LoadRubyCodeReturn;
 
 LoadRubyCodeReturn *FreeLoadRubyCodeReturn(LoadRubyCodeReturn *aReturn);

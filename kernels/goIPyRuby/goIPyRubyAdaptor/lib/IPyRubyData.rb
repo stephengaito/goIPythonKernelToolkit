@@ -170,6 +170,7 @@ def MakeDataAndText(mimeType, data, textData)
   dataValue['Data'] = Hash.new
   mimeType = MIMETypeText unless IPyRubyMIMEMapKeys.include?(mimeType)
   data     = data.pretty_inspect.chomp unless data.is_a?(String)
+  textData = "" if textData.nil?
   textData = textData.pretty_inspect.chomp unless textData.is_a?(String)
   dataValue['Data'][MIMETypeText] = textData
   dataValue['Data'][mimeType]     = data
@@ -179,10 +180,13 @@ def MakeDataAndText(mimeType, data, textData)
 end
 
 def Convert2Data(origValue)
-
+ 
   # ensure origValue IS an IPyRubyData object
   #
-  origValue = MakeData("", origValue)
+  origValue = 
+    if origValue.nil? then MakeDataAndText(MIMETypeText, "", "")
+    else                   MakeData("", origValue)
+    end
 
   # Now work with the goIPyRuby callbacks to convert this IPyRubyData object 
   # into a goIPyKernel Data object
@@ -212,6 +216,7 @@ def Convert2Data(origValue)
   #
   # SO we quitely ignore 'Transient' data.
   #
+
   return dataObj
 end
 
@@ -221,29 +226,55 @@ def MakeLastErrorData(err, errMsg)
 # $@ 	location of error
 # $_ 	string last read by gets
 # $. 	line number last read by interpreter 
-
+  
   dataObj = IPyKernelData_New([err, errMsg, "lastErrorData"])
   IPyKernelData_AddData(dataObj, "ename", "ERROR")
   IPyKernelData_AddData(dataObj, "evalue", err.to_s)
   IPyKernelData_AppendTraceback(dataObj, errMsg)
   IPyKernelData_AddData(dataObj, "status", "error")
+    
   return dataObj
 end
 
 def IPyRubyEval(aString)
-  puts "Hello from IPyRubyEval"
-  evalResult = begin
-    TOPLEVEL_BINDING.eval(aString)
-  rescue
-    MakeLastErrorData($!, "TOPLEVEL_BINDING.eval FAILED")
+
+  # prepare to capture any errors from the TOPLEVEL_BINDING.eval
+  #
+  evalTrace = TracePoint.new(:raise) do | tp |
+    errReport = [ tp.raised_exception.to_s ]
+    strLines  = aString.lines
+    if tp.lineno < strLines.length then 
+      errReport.push "in line: (#{tp.lineno})"
+      errReport.push aString.lines[tp.lineno]
+    end
+    errorData = MakeLastErrorData(
+      errReport.join("\n"),
+      "IPyRuby kernel evaluation of Ruby code FAILED"
+    )
+    evalTrace.disable
+    return errorData
   end
-  require 'pp'
-  pp evalResult
-  begin
-    return Convert2Data(evalResult)
-  rescue
-    MakeLastErrorData($!, "Convert2Data FAILED")
+  evalTrace.enable
+  evalResult = TOPLEVEL_BINDING.eval(aString)
+  evalTrace.disable
+
+  # prepare to capture any errors from the Convert2Data
+  #
+  convertTrace = TracePoint.new(:raise) do | tp |
+    errReport = [
+      tp.raised_exception.to_s,
+      caller.shift
+    ]
+    errorData = MakeLastErrorData(
+      errReport.join("\n"),
+      "Convert2Data FAILED"
+    )
+    convertTrace.disable
+    return errorData
   end
-  # SHOULD NOT end up here!
-  return nil
+  convertTrace.enable
+  convertedResult = Convert2Data(evalResult)
+  convertTrace.disable
+  
+  return convertedResult
 end

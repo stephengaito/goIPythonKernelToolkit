@@ -77,8 +77,8 @@ func GoIPyKernelData_AddData(
 
 // Add the mimeType/dataValue pair to the Data map of the Data object.
 //
-// Takes the Data object at `objId` from the IPyKernelStore and adds the 
-// mimeType/dataValue to the Data's Data map.
+// Takes the Data object at `objId` from the IPyKernelStore and adds one 
+// traceback string to the Data's Data map. 
 //
 //export GoIPyKernelData_AppendTraceback
 func GoIPyKernelData_AppendTraceback(
@@ -176,13 +176,18 @@ func (rs *RubyState) IsRubyRunning() bool {
 // Load the Ruby code named `rubyCodeName` from the contents of the string 
 // `rubyCode`.
 //
-// Returns any error messages as an error, or nil if the code was loaded 
-// correctly. 
+// Returns an int64 and (possibly) a Go error structure.
+//
+// If the `rubyCode` returns any Integers, that integer is returned in the 
+// int64. Otherwise the int64 is zero. 
+//
+// If any errors occur, a string description is wrapped in a Go error 
+// structure. 
 //
 func (rs *RubyState) LoadRubyCode(
   rubyCodeName string,
   rubyCode     string,
-) (uint64, error) {
+) (int64, error) {
   rubyCodeCStr     := C.CString(rubyCode)
   defer C.free(unsafe.Pointer(rubyCodeCStr))
   rubyCodeNameCStr := C.CString(rubyCodeName)
@@ -195,11 +200,10 @@ func (rs *RubyState) LoadRubyCode(
   defer C.FreeLoadRubyCodeReturn(result)
   
   if result.errMesg != nil {
-    //errMesg := C.GoString(result.errMesg)
-    errMesg := "silly"
-    return uint64(result.objId), errors.New(errMesg)
+    errMesg := C.GoString(result.errMesg)
+    return int64(result.objId), errors.New(errMesg)
   }
-  return uint64(result.objId), nil
+  return int64(result.objId), nil
 }
 
 // Returns true if the Ruby code named `rubyCodeName` has already been 

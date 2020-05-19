@@ -4,13 +4,11 @@ require 'test/unit'
 require './IPyRubyData'
 
 someRubyCode = <<END_CODE
-
 require 'pp'
 
 puts 'Hello TestEvalRubyString1'
 a =  'Hello TestEvalRubyString2'
-raise("raising silly")
-
+MakeTextData(a)
 END_CODE
 
 ###############################################################

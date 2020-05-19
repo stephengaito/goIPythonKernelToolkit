@@ -52,6 +52,8 @@ func (adaptor *GoAdaptor) GetKernelInfo() tk.KernelInfo {
   
 // Get the possible completions for the word at cursorPos in the code. 
 //
+// Not currently implemented for the IPyRuby kernel.
+//
 func (adaptor *GoAdaptor) GetCodeWordCompletions(
   code string,
   cursorPos int,
@@ -62,12 +64,16 @@ func (adaptor *GoAdaptor) GetCodeWordCompletions(
 // Setup the Display callback by recording the msgReceipt information
 // for later use by what ever callback implements the "Display" function. 
 //
+// Not currently implemented for the IPyRuby kernel.
+//
 func (adaptor *GoAdaptor) SetupDisplayCallback(receipt tk.MsgReceipt) {
 }
   
 // Teardown the Display callback by removing the current msgReceipt
 // information and setting things back to what ever default the 
 // implementation uses.
+//
+// Not currently implemented for the IPyRuby kernel.
 //
 func (adaptor *GoAdaptor) TeardownDisplayCallback() {
 }
@@ -76,6 +82,8 @@ func (adaptor *GoAdaptor) TeardownDisplayCallback() {
 // the code gets evaluated by the interpreter. The `outErr` variable 
 // contains the stdOut and stdErr which can be used to capture the stdOut 
 // and stdErr of any external commands run by these special commands. 
+//
+// Not currently implemented for the IPyRuby kernel.
 //
 func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
   outErr tk.OutErr,
