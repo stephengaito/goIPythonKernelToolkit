@@ -125,7 +125,8 @@ func (adaptor *GoAdaptor) TeardownDisplayCallback() {
 // uncaught panic as well as the values of the last statement/expression. 
 //
 func (adaptor *GoAdaptor) EvaluateCode(
-  code string,
+  execCounter int, 
+  code        string,
 ) (rtnData tk.Data, err error) {
   ir := adaptor.ir
   
