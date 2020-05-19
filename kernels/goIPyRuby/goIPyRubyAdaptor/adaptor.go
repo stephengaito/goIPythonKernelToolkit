@@ -97,7 +97,7 @@ func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
 func (adaptor *GoAdaptor) EvaluateCode(
   execCounter int,
   code string,
-) (rtnData *tk.Data, err error) {
+) (rtnData tk.Data, err error) {
   execCounterStr := fmt.Sprintf("ec: %d", execCounter)
   
   dataObj := adaptor.Ruby.GoEvalRubyString(execCounterStr, code)

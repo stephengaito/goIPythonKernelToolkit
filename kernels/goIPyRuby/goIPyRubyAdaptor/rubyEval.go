@@ -193,7 +193,7 @@ func (rs *RubyState) GetRubyVersion() string {
 //
 func (rs *RubyState) GoEvalRubyString(
   rubyCodeName, rubyCodeStr string,
-) *tk.Data {  
+) tk.Data {  
   rubyCodeNameCStr := C.CString(rubyCodeName)
   defer C.free(unsafe.Pointer(rubyCodeNameCStr))
   
@@ -202,7 +202,7 @@ func (rs *RubyState) GoEvalRubyString(
 
   objId := uint64(C.evalRubyString(rubyCodeNameCStr, rubyCodeCStr))
   if objId == 0 {
-    return &tk.Data{
+    return tk.Data{
       Data: tk.MIMEMap{
         "ename":     "ERROR",
         "evalue":    "no return value from evalRubyString",
@@ -216,7 +216,7 @@ func (rs *RubyState) GoEvalRubyString(
 
   anObj := tk.TheObjectStore.Get(objId)
   if anObj == nil {
-    return &tk.Data{
+    return tk.Data{
       Data: tk.MIMEMap{
         "ename":     "ERROR",
         "evalue":    "no data object in the object store",
@@ -234,5 +234,5 @@ func (rs *RubyState) GoEvalRubyString(
   //spew.Dump(syncedObj.TKData)
   newDataObj := syncedObj.TKData.DeepCopy()
   //spew.Dump(newDataObj)
-  return &newDataObj
+  return newDataObj
 }
