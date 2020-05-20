@@ -63,7 +63,7 @@ char *LoadBrokenCodeCGoTest(void *data) {
 /// \brief Should evaluate some ruby code
 ///
 char *EvalRubyStringCGoTest(void *data) {
-  startRuby();
+  createAdaptor();
   
   uint64_t result = evalRubyString(
     "evalRubyStringCGoTest",

@@ -1,7 +1,7 @@
 // +buid cGoTests
 
 /// \file
-/// \brief Some tests of the IPyKernelData interface using cGoTests
+/// \brief Some tests of the IPyRubyData interface using cGoTests
 
 #include "_cgo_export.h"
 #include "goIPyRubyAdaptorCGoTests.h"
@@ -11,8 +11,8 @@
 /// \brief Test adding a MIMEType/dataValue to the Data field of a 
 /// DataObj.
 ///
-/// For use by the Go rubyEval_IPyKernelDataCGTest.go and
-/// rubyEval_IPyKernelData_test.go files. We use this inderection since Go 
+/// For use by the Go rubyEval_IPyRubyDataCGTest.go and
+/// rubyEval_IPyRubyData_test.go files. We use this inderection since Go 
 /// tests can not directly call CGo wrapped code, and we want to ensure 
 /// the ANSI-C code *can* call back into the Go code. 
 ///
@@ -20,7 +20,7 @@ void addMimeMapToDataObjTest(uint64_t objId) {
   char *mimeType  = "MIMETest";
   char *dataValue = "some data";
   
-  GoIPyKernelData_AddData(
+  GoIPyRubyData_AddData(
     objId,
     mimeType,  strlen(mimeType),
     dataValue, strlen(dataValue)
@@ -30,8 +30,8 @@ void addMimeMapToDataObjTest(uint64_t objId) {
 /// \brief Test adding a MIMETypeJPEF/dataValue to the Data field of a 
 /// DataObj.
 ///
-/// For use by the Go rubyEval_IPyKernelDataCGTest.go and
-/// rubyEval_IPyKernelData_test.go files. We use this inderection since Go 
+/// For use by the Go rubyEval_IPyRubyDataCGTest.go and
+/// rubyEval_IPyRubyData_test.go files. We use this inderection since Go 
 /// tests can not directly call CGo wrapped code, and we want to ensure 
 /// the ANSI-C code *can* call back into the Go code. 
 ///
@@ -49,7 +49,7 @@ void addJPEGMimeMapToDataObjTest(uint64_t objId) {
   dataValue[8] = 'a';
   dataValue[9] = 0;
   
-  GoIPyKernelData_AddData(
+  GoIPyRubyData_AddData(
     objId,
     mimeType,  strlen(mimeType),
     dataValue, 10
@@ -59,8 +59,8 @@ void addJPEGMimeMapToDataObjTest(uint64_t objId) {
 /// \brief Test adding a MIMETypePNG/dataValue to the Data field of a 
 /// DataObj.
 ///
-/// For use by the Go rubyEval_IPyKernelDataCGTest.go and
-/// rubyEval_IPyKernelData_test.go files. We use this inderection since Go 
+/// For use by the Go rubyEval_IPyRubyDataCGTest.go and
+/// rubyEval_IPyRubyData_test.go files. We use this inderection since Go 
 /// tests can not directly call CGo wrapped code, and we want to ensure 
 /// the ANSI-C code *can* call back into the Go code. 
 
@@ -79,7 +79,7 @@ void addPNGMimeMapToDataObjTest(uint64_t objId) {
   dataValue[8] = 'a';
   dataValue[9] = 0;
   
-  GoIPyKernelData_AddData(
+  GoIPyRubyData_AddData(
     objId,
     mimeType,  strlen(mimeType),
     dataValue, 10
@@ -89,8 +89,8 @@ void addPNGMimeMapToDataObjTest(uint64_t objId) {
 /// \brief Test adding a MIMEType/metaKey/dataValue to the Metadata field 
 /// of a DataObj.
 ///
-/// For use by the Go rubyEval_IPyKernelDataCGTest.go and
-/// rubyEval_IPyKernelData_test.go files. We use this inderection since Go 
+/// For use by the Go rubyEval_IPyRubyDataCGTest.go and
+/// rubyEval_IPyRubyData_test.go files. We use this inderection since Go 
 /// tests can not directly call CGo wrapped code, and we want to ensure 
 /// the ANSI-C code *can* call back into the Go code. 
 /// 
@@ -99,7 +99,7 @@ void addMimeMapToMetadataObjTest(uint64_t objId) {
   char *metaKey   = "Width";
   char *dataValue = "some data";
   
-  GoIPyKernelData_AddMetadata(
+  GoIPyRubyData_AddMetadata(
     objId,
     mimeType,  strlen(mimeType),
     metaKey,   strlen(metaKey),

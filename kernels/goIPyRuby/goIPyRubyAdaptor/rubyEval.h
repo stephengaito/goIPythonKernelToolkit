@@ -13,6 +13,8 @@ extern int stopRuby(void);
 
 extern int isRubyRunning(void);
 
+extern void createAdaptor(void);
+
 typedef struct LoadRubyCodeReturn_struct {
   char     *errMesg;
   int64_t   objId;

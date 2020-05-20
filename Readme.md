@@ -67,3 +67,8 @@ Then
     go install
 ```
 
+## Notes
+
+We need some way to store the GoLang adaptor or kernel structures for use 
+inside the apaptor's ANSI-C code. This would allow state variables to be 
+stores on an adaptor or kernel instance scope instead of a global scope.

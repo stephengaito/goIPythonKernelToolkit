@@ -9,49 +9,68 @@ import "C"
 
 import (
   "errors"
-  //"fmt"
+  "fmt"
   "unsafe"
   
-  //"github.com/davecgh/go-spew/spew"
+  "github.com/davecgh/go-spew/spew"
   tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
 
+// Create an adaptor instance (for CGoTesting)
+//
+// PANICS if IPyRubyData.rb can not be loaded.
+//
+//export GoCreateAdaptor
+func GoCreateAdaptor() {
+  // The folllowing is only needed for the side effect of
+  // starting ruby and loading IPyRubyData.rb 
+  NewGoAdaptor()
+}
 
-// Create a new Data object and store it in the IPyKernelStore.
+var IPyRubyDebugging bool
+
+// (Globally) toggles the IPyRuby kernel debugging.
 //
-// Return the GoUInt64 key to the new object in the IPyKernelStore.
+//export GoToggleIPyRubyDebugging
+func GoToggleIPyRubyDebugging() {
+  IPyRubyDebugging = !IPyRubyDebugging
+}
+
+// Create a new Data object and store it in the IPyRubyStore.
 //
-//export GoIPyKernelData_New
-func GoIPyKernelData_New() uint64 {
-  //fmt.Print("GoIPyKernelData_New\n")
+// Return the GoUInt64 key to the new object in the IPyRubyStore.
+//
+//export GoIPyRubyData_New
+func GoIPyRubyData_New() uint64 {
+  //fmt.Print("GoIPyRubyData_New\n")
   newObjId := tk.StoreData_New()
   //fmt.Printf("  objId:       %d\n", newObjId)
   return newObjId
 }
 
-// Delete an existing Data object from the IPyKernelStore.
+// Delete an existing Data object from the IPyRubyStore.
 //
-//export GoIPyKernelData_Delete
-func GoIPyKernelData_Delete(objId uint64) {
-  //fmt.Print("GoIPyKernelData_Delete\n")
+//export GoIPyRubyData_Delete
+func GoIPyRubyData_Delete(objId uint64) {
+  //fmt.Print("GoIPyRubyData_Delete\n")
   //fmt.Printf("  objId:       %d\n", objId)
   tk.StoreData_Delete(objId)
 }
 
 // Add the mimeType/dataValue pair to the Data map of the Data object.
 //
-// Takes the Data object at `objId` from the IPyKernelStore and adds the 
+// Takes the Data object at `objId` from the IPyRubyStore and adds the 
 // mimeType/dataValue to the Data's Data map.
 //
-//export GoIPyKernelData_AddData
-func GoIPyKernelData_AddData(
+//export GoIPyRubyData_AddData
+func GoIPyRubyData_AddData(
   objId         uint64,
   mimeTypePtr  *C.char,
   mimeTypeLen   C.int,
   dataValuePtr *C.char,
   dataValueLen  C.int,
 ) {
-  //fmt.Print("GoIPyKernelData_AddData\n")
+  //fmt.Print("GoIPyRubyData_AddData\n")
   //fmt.Printf("  objId:       %d\n", objId)
   mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
   //fmt.Printf("  mimeType:  %s", mimeType)
@@ -68,16 +87,16 @@ func GoIPyKernelData_AddData(
 
 // Add the mimeType/dataValue pair to the Data map of the Data object.
 //
-// Takes the Data object at `objId` from the IPyKernelStore and adds one 
+// Takes the Data object at `objId` from the IPyRubyStore and adds one 
 // traceback string to the Data's Data map. 
 //
-//export GoIPyKernelData_AppendTraceback
-func GoIPyKernelData_AppendTraceback(
+//export GoIPyRubyData_AppendTraceback
+func GoIPyRubyData_AppendTraceback(
   objId              uint64,
   tracebackValuePtr *C.char,
   tracebackValueLen  C.int,
 ) {
-  //fmt.Print("GoIPyKernelData_AppemdTraceback\n")
+  //fmt.Print("GoIPyRubyData_AppemdTraceback\n")
   //fmt.Printf("  objId:       %d\n", objId)
     
   tracebackValue := C.GoStringN(tracebackValuePtr, tracebackValueLen)
@@ -86,11 +105,11 @@ func GoIPyKernelData_AppendTraceback(
 
 // Add the mimeType/metaKey/dataValue triple to the Metadata map of the Data object.
 //
-// Takes the Data object at `objId` from the IPyKernelStore and adds the 
+// Takes the Data object at `objId` from the IPyRubyStore and adds the 
 // mimeType/metaKey/dataValue to the Data's Metadata map. 
 //
-//export GoIPyKernelData_AddMetadata
-func GoIPyKernelData_AddMetadata(
+//export GoIPyRubyData_AddMetadata
+func GoIPyRubyData_AddMetadata(
   objId         uint64,
   mimeTypePtr  *C.char,
   mimeTypeLen   C.int,
@@ -99,7 +118,7 @@ func GoIPyKernelData_AddMetadata(
   dataValuePtr *C.char,
   dataValueLen  C.int,
 ) {
-  //fmt.Print("GoIPyKernelData_AddMetadata\n")
+  //fmt.Print("GoIPyRubyData_AddMetadata\n")
   //fmt.Printf("  objId:       %d\n", objId)
     
   mimeType := C.GoStringN(mimeTypePtr, mimeTypeLen)
@@ -193,7 +212,13 @@ func (rs *RubyState) GetRubyVersion() string {
 //
 func (rs *RubyState) GoEvalRubyString(
   rubyCodeName, rubyCodeStr string,
-) tk.Data {  
+) tk.Data {
+  if IPyRubyDebugging {
+    fmt.Printf("GoEvalRubyString\n")
+    fmt.Printf("  rubyCodeName: [%s]\n", rubyCodeName)
+    fmt.Printf("   rubyCodeStr: [%s]\n", rubyCodeStr)
+  }
+  
   rubyCodeNameCStr := C.CString(rubyCodeName)
   defer C.free(unsafe.Pointer(rubyCodeNameCStr))
   
@@ -233,6 +258,6 @@ func (rs *RubyState) GoEvalRubyString(
   
   //spew.Dump(syncedObj.TKData)
   newDataObj := syncedObj.TKData.DeepCopy()
-  //spew.Dump(newDataObj)
+  if IPyRubyDebugging { spew.Dump(newDataObj) }
   return newDataObj
 }

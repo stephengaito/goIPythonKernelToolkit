@@ -77,11 +77,24 @@ func TestEvalRubyString(t *testing.T) {
   )
   assert.NotNil(t, dataObj, "Should return a non empty dataOjb")
   //spew.Dump(dataObj)
-    assert.NotNil(t, dataObj.Data[tk.MIMETypeText],
-    "Should return a MIMETypeText error")
+  assert.NotNil(t, dataObj.Data[tk.MIMETypeText],
+    "Should return a MIMETypeText value")
   assert.Equal(t, dataObj.Data[tk.MIMETypeText],
     "Hello TestEvalRubyString2",
-    "Should return correct error report",
+    "Should return correct MIMETypeText value",
+  );
+
+  dataObj = rubyState.GoEvalRubyString(
+    "TestEvalRubyString2",
+    "a",
+  )
+  assert.NotNil(t, dataObj, "Should return a non empty dataOjb")
+  //spew.Dump(dataObj)
+  assert.NotNil(t, dataObj.Data[tk.MIMETypeText],
+    "Should return a MIMETypeText value")
+  assert.Equal(t, dataObj.Data[tk.MIMETypeText],
+    "Hello TestEvalRubyString2",
+    "Should return correct MIMETypeText value",
   );
 
   dataObj = rubyState.GoEvalRubyString(

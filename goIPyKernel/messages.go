@@ -12,6 +12,8 @@ import (
 	"github.com/gofrs/uuid"
 )
 
+// see: https://ipython.org/ipython-doc/dev/development/messaging.html
+
 const (
 	// ProtocolVersion defines the Jupyter protocol version.
 	ProtocolVersion string = "5.0"

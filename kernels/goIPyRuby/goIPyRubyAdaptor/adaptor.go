@@ -6,6 +6,8 @@ package goIPyRubyAdaptor
 import (
   //"unsafe"
   "fmt"
+  "os"
+  "time"
   
   tk "github.com/stephengaito/goIPythonKernelToolkit/goIPyKernel"
 )
@@ -18,15 +20,52 @@ const (
 // GoAdaptor represents any state required by the adaptor.
 ///
 type GoAdaptor struct {
+
+  // AdaptorIdFormat is a string which together with the ExecCounter and 
+  // ExecSubCounter forms the ExecName to uniquely identify this kernel for 
+  // a human user. 
+  //
+  AdaptorIdFormat string
+
   // The Ruby State
+  //
   Ruby *RubyState
 }
 
 // Create a new adaptor.
 //
 func NewGoAdaptor() *GoAdaptor {
+
+  // Start by creating the adaptor id format for use by the EvaluateCode 
+  // method. 
+  //
+  adaptorIdFormat := fmt.Sprintf(
+    "IPyRuby-%s-%d-%%d.%%d",
+    time.Now().Format("2006/01/02-15:04:05"),
+    os.Getpid(),
+  )
+  
+  // now create the ruby state..
+  //
+  rubyState := CreateRubyState()
+
+  // now load the IPyRubyData.rb code (for the GoEvalRubyString)
+  //
+  codePath := "/lib/IPyRubyData.rb"
+  IPyRubyDataCode, err := FSString(false, codePath)
+  if err != nil {
+    panic("Could not load IPyRubyData.rb from the internal fileSystem!")
+  }
+  _, err = rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode)
+  if err != nil {
+    panic("Could not load IPyRubyData.rb into running Ruby!")
+  }
+  
+  IPyRubyDebugging = false
+  
   return &GoAdaptor{
-    Ruby: CreateRubyState(),
+    AdaptorIdFormat: adaptorIdFormat,
+    Ruby:            rubyState,
   }
 }
 
@@ -96,10 +135,12 @@ func (adaptor *GoAdaptor) EvaluateRemoveSpecialCommands(
 //
 func (adaptor *GoAdaptor) EvaluateCode(
   execCounter int,
+  execSubCounter int,
   code string,
 ) (rtnData tk.Data, err error) {
-  execCounterStr := fmt.Sprintf("ec: %d", execCounter)
+  adaptorIdStr :=
+    fmt.Sprintf(adaptor.AdaptorIdFormat, execCounter, execSubCounter)
   
-  dataObj := adaptor.Ruby.GoEvalRubyString(execCounterStr, code)
+  dataObj := adaptor.Ruby.GoEvalRubyString(adaptorIdStr, code)
   return dataObj, nil
 }

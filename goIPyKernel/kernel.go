@@ -15,10 +15,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// ExecCounter is incremented each time we run user code in the notebook. 
-//
-var ExecCounter int
-
 // ConnectionInfo stores the contents of the kernel connection
 // file created by Jupyter.
 type ConnectionInfo struct {
@@ -88,6 +84,10 @@ const (
 	KernelIdle     = "idle"
 )
 
+// The Interface that the adaptor MUST implement.
+//
+// see: https://ipython.org/ipython-doc/dev/development/messaging.html
+//
 type AdaptorImpl interface {
 
   // GetKernelInfo returns the KernelInfo for this kernel implementation.
@@ -95,6 +95,8 @@ type AdaptorImpl interface {
   GetKernelInfo() KernelInfo
   
   // Get the possible completions for the word at cursorPos in the code. 
+  //
+  // see: https://ipython.org/ipython-doc/dev/development/messaging.html#code-completeness
   //
   GetCodeWordCompletions(code string, cursorPos int) (int, int, []string)
 
@@ -118,16 +120,34 @@ type AdaptorImpl interface {
 
   // Evaluate the code and return the results as a Data object.
   //
-  EvaluateCode(execCount int, code string) (rtnData Data, err error)
+  EvaluateCode(execCount, execSubCount int, code string) (rtnData Data, err error)
 
 }
 
 type IPyKernel struct {
-  adaptor AdaptorImpl
+
+  // ExecCounter is incremented each time we run user code in the notebook. 
+  //
+  ExecCounter int
+
+  // ExecSubCounter is incremented each time the ExecCounter increment is 
+  // silent. ExecSubCounter is reset to zero each time ExecCounter is 
+  // incremented. 
+  //
+  ExecSubCounter int
+  
+  // Adaptor is this kernel's Adaptor Implementation.
+  //
+  Adaptor AdaptorImpl
 }
 
 func NewIPyKernel(anAdaptor AdaptorImpl) *IPyKernel {
-  return &IPyKernel{ adaptor: anAdaptor }
+
+  return &IPyKernel{
+    ExecCounter:    0,
+    ExecSubCounter: 0,
+    Adaptor:        anAdaptor,
+  }
 }
 
 // RunWithSocket invokes the `run` function after acquiring the 
@@ -353,7 +373,7 @@ func (kernel *IPyKernel) HandleShellMsg(receipt MsgReceipt) {
 func (kernel *IPyKernel) HandleKernelInfoRequest(receipt MsgReceipt) error {
 	return receipt.Reply(
     "kernel_info_reply",
-    kernel.adaptor.GetKernelInfo(),
+    kernel.Adaptor.GetKernelInfo(),
   )
 }
 
@@ -365,7 +385,7 @@ func (kernel *IPyKernel) HandleCompleteRequest(receipt MsgReceipt) error {
 
 	// autocomplete the code at the cursor position
   cursorStart, cursorEnd, matches := 
-    kernel.adaptor.GetCodeWordCompletions(code, cursorPos)
+    kernel.Adaptor.GetCodeWordCompletions(code, cursorPos)
   
 	// prepare the reply
 	content := make(map[string]interface{})
@@ -396,15 +416,18 @@ func (kernel *IPyKernel) HandleExecuteRequest(receipt MsgReceipt) error {
 	silent := reqcontent["silent"].(bool)
 
 	if !silent {
-		ExecCounter++
-	}
+		kernel.ExecCounter++
+    kernel.ExecSubCounter = 0
+	} else {
+		kernel.ExecSubCounter++
+  }
 
 	// Prepare the map that will hold the reply content.
 	content := make(map[string]interface{})
-	content["execution_count"] = ExecCounter
+	content["execution_count"] = kernel.ExecCounter
 
 	// Tell the front-end what the kernel is about to execute.
-	if err := receipt.PublishExecutionInput(ExecCounter, code); err != nil {
+	if err := receipt.PublishExecutionInput(kernel.ExecCounter, code); err != nil {
 		log.Printf("Error publishing execution input: %v\n", err)
 	}
 
@@ -442,14 +465,18 @@ func (kernel *IPyKernel) HandleExecuteRequest(receipt MsgReceipt) error {
 		io.Copy(&jupyterStdErr, rErr)
 	}()
 
-  kernel.adaptor.SetupDisplayCallback(receipt)
-  defer kernel.adaptor.TeardownDisplayCallback()
+  kernel.Adaptor.SetupDisplayCallback(receipt)
+  defer kernel.Adaptor.TeardownDisplayCallback()
   
   // evaluate and remove any special commands
-  code = kernel.adaptor.EvaluateRemoveSpecialCommands(outerr, code)
+  code = kernel.Adaptor.EvaluateRemoveSpecialCommands(outerr, code)
   
 	// eval
-	data, executionErr := kernel.adaptor.EvaluateCode(ExecCounter, code)
+	data, executionErr := kernel.Adaptor.EvaluateCode(
+    kernel.ExecCounter,
+    kernel.ExecSubCounter,
+    code,
+  )
 
 	// Close and restore the streams.
 	wOut.Close()
@@ -469,7 +496,7 @@ func (kernel *IPyKernel) HandleExecuteRequest(receipt MsgReceipt) error {
 
 		if !silent && len(data.Data) != 0 {
 			// Publish the result of the execution.
-			if err := receipt.PublishExecutionResult(ExecCounter, data); err != nil {
+			if err := receipt.PublishExecutionResult(kernel.ExecCounter, data); err != nil {
 				log.Printf("Error publishing execution result: %v\n", err)
 			}
 		}

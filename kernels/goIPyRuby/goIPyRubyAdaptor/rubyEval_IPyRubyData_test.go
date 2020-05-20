@@ -13,8 +13,8 @@ import (
 // assertions: https://godoc.org/github.com/stretchr/testify/assert
 // prettyPrint: https://github.com/davecgh/go-spew
 
-func TestGoIPyKernelData(t *testing.T) {
-  objId := GoIPyKernelData_New()
+func TestGoIPyRubyData(t *testing.T) {
+  objId := GoIPyRubyData_New()
   assert.Equal(t, tk.TheObjectStore.NextId, objId,
     "Object id should NextId",
   )
@@ -102,7 +102,7 @@ func TestGoIPyKernelData(t *testing.T) {
   }
 }
 
-func TestIPyKernelData_New(t *testing.T) {
+func TestIPyRubyData_New(t *testing.T) {
   rubyState := CreateRubyState()
   
   codePath := "/lib/IPyRubyData.rb"
@@ -114,9 +114,9 @@ func TestIPyKernelData_New(t *testing.T) {
   assert.NoError(t, err, "Could not load IPyRubyData.rb")
  
   objId, err := 
-    rubyState.LoadRubyCode("TestIPyKernelData_New", "IPyKernelData_New(nil)")
+    rubyState.LoadRubyCode("TestIPyRubyData_New", "IPyRubyData_New(nil)")
   
-  assert.NoError(t, err, "Could not call TestIPyKernelData_New")
+  assert.NoError(t, err, "Could not call TestIPyRubyData_New")
   anObj := tk.TheObjectStore.Get(uint64(objId))
   assert.NotNil(t, anObj, "Should have returned an empty Data object interface")
   aSyncedDataObj := anObj.(*tk.SyncedData)
@@ -126,10 +126,10 @@ func TestIPyKernelData_New(t *testing.T) {
   assert.Zero(t, len(aSyncedDataObj.TKData.Transient), "Should have an empty Transient mimeMap")
 }
 
-func TestIPyKernelData_AddData(t *testing.T) {
+func TestIPyRubyData_AddData(t *testing.T) {
   rubyCode := `
-    anObj = IPyKernelData_New(nil)
-    IPyKernelData_AddData(anObj, MIMETypeText, "test text")
+    anObj = IPyRubyData_New(nil)
+    IPyRubyData_AddData(anObj, MIMETypeText, "test text")
     anObj
   `
   rubyState := CreateRubyState()
@@ -142,8 +142,8 @@ func TestIPyKernelData_AddData(t *testing.T) {
   _, err = rubyState.LoadRubyCode("IPyRubyData.rb", IPyRubyDataCode)
   assert.NoError(t, err, "Could not load IPyRubyData.rb")
  
-  objId, err := rubyState.LoadRubyCode("TestIPyKernelData_AddData", rubyCode)
-  assert.NoError(t, err, "Could not call TestIPyKernelData_AddData")
+  objId, err := rubyState.LoadRubyCode("TestIPyRubyData_AddData", rubyCode)
+  assert.NoError(t, err, "Could not call TestIPyRubyData_AddData")
   anObj := tk.TheObjectStore.Get(uint64(objId))
       
   assert.NotNil(t, anObj, "Should have returned an empty Data object interface")
@@ -155,10 +155,10 @@ func TestIPyKernelData_AddData(t *testing.T) {
   assert.Zero(t, len(aSyncedDataObj.TKData.Transient), "Should have an empty Transient mimeMap")
 }
 
-func TestIPyKernelData_AddMetadata(t *testing.T) {
+func TestIPyRubyData_AddMetadata(t *testing.T) {
   rubyCode := `
-    anObj = IPyKernelData_New(nil)
-    IPyKernelData_AddMetadata(anObj, MIMETypeText, "test", "test text")
+    anObj = IPyRubyData_New(nil)
+    IPyRubyData_AddMetadata(anObj, MIMETypeText, "test", "test text")
     anObj
   `
   rubyState := CreateRubyState()
@@ -172,8 +172,8 @@ func TestIPyKernelData_AddMetadata(t *testing.T) {
   assert.NoError(t, err, "Could not load IPyRubyData.rb")
  
   objId, err :=
-    rubyState.LoadRubyCode("TestIPyKernelData_AddMetadata", rubyCode)
-  assert.NoError(t, err, "Could not call TestIPyKernelData_AddMetadata")
+    rubyState.LoadRubyCode("TestIPyRubyData_AddMetadata", rubyCode)
+  assert.NoError(t, err, "Could not call TestIPyRubyData_AddMetadata")
   anObj := tk.TheObjectStore.Get(uint64(objId))
   
   assert.NotNil(t, anObj, "Should have returned a Data object interface")

@@ -46,7 +46,7 @@
 #define DEBUG_Log3(aFormat, aValue, anotherValue)
 #endif
 
-void Init_IPyKernelData(void); // forward declaration...
+void Init_IPyRubyData(void); // forward declaration...
 
 #ifndef RSTRING_P
 
@@ -93,7 +93,7 @@ void startRuby() {
     ruby_init();
     ruby_init_loadpath();
     ruby_script("goIPyRuby");
-    Init_IPyKernelData();
+    Init_IPyRubyData();
     rubyRunning = 1;
   }
   pthread_mutex_unlock(&rubyMutex);
@@ -121,10 +121,12 @@ int isRubyRunning(void) {
 /// loadRubyCode method. 
 ///
 LoadRubyCodeReturn *FreeLoadRubyCodeReturn(LoadRubyCodeReturn *aReturn) {
-  if (aReturn->errMesg) {
-    free(aReturn->errMesg);
+  if (aReturn) {
+    if (aReturn->errMesg) {
+      free(aReturn->errMesg);
+    }
+    free(aReturn);
   }
-  free(aReturn);
   return NULL;
 }
 
@@ -135,9 +137,12 @@ LoadRubyCodeReturn *FreeLoadRubyCodeReturn(LoadRubyCodeReturn *aReturn) {
 /// rescued by the ANSI-C code.
 ///
 static VALUE protectedLoadRubyCode(VALUE args) {
+  assert(args);
   VALUE rubyCodeStr  = rb_ary_pop(args);
   VALUE rubyCodeName = rb_ary_pop(args);
-  
+
+  assert(rubyCodeStr);
+  assert(rubyCodeName);
   DEBUG_Log("before protectedLoadRubyCode::rb_funcall\n");
   VALUE result = rb_funcall(
     Qnil,
@@ -160,14 +165,18 @@ LoadRubyCodeReturn *loadRubyCode(
   const char *rubyCodeNameCStr,
   const char *rubyCodeCStr
 ) {
+  assert(rubyRunning);
+  assert(rubyCodeNameCStr);
+  assert(rubyCodeCStr);
+  
   DEBUG_Log("START loadRubyCode\n");
   DEBUG_Log2(" rubyCodeName: %s\n", rubyCodeNameCStr);
   //DEBUG_Log2("     rubyCode: %s\n", rubyCodeCStr);
 
   pthread_mutex_lock(&rubyMutex);
 
-  
   LoadRubyCodeReturn *returnStruct = calloc(1, sizeof(LoadRubyCodeReturn));
+  assert(returnStruct);
   DEBUG_Log2("          returnStruct: %p\n", returnStruct);
   DEBUG_Log2("   returnStruct->objId: %ld\n", returnStruct->objId);
   DEBUG_Log2(" returnStruct->errMesg: %s\n", returnStruct->errMesg);
@@ -178,6 +187,7 @@ LoadRubyCodeReturn *loadRubyCode(
     rubyCodeNameCStr,
     loadedCodeNames
   );
+  //assert(loadedCodeNames); starts NULL
   HASH_FIND_STR(loadedCodeNames, rubyCodeNameCStr, foundCodeName);
   if (!foundCodeName) {
     //
@@ -187,6 +197,9 @@ LoadRubyCodeReturn *loadRubyCode(
     VALUE rubyCodeName = rb_str_new_cstr(rubyCodeNameCStr);
     VALUE rubyCodeStr  = rb_str_new_cstr(rubyCodeCStr);
     VALUE codeArray    = rb_ary_new();
+    assert(rubyCodeName);
+    assert(rubyCodeStr);
+    assert(codeArray);
     DEBUG_Log2("rubyCodeName: %ld\n", rubyCodeName);
     DEBUG_Log2(" rubyCodeStr: %ld\n", rubyCodeStr);
     DEBUG_Log2("   codeArray: %ld\n", codeArray);
@@ -196,13 +209,16 @@ LoadRubyCodeReturn *loadRubyCode(
     DEBUG_Log("Before rb_protect\n");
     int loadFailed = 0;
     VALUE result = rb_protect(protectedLoadRubyCode, codeArray, &loadFailed);
+    assert(result);
     DEBUG_Log2("After rb_protect     result: %ld\n", result);
     DEBUG_Log2("After rb_protect loadFailed: %d\n", loadFailed);
     if (loadFailed) {
       DEBUG_Log("Load failed\n");
       VALUE errMesg = rb_errinfo();
+      assert(errMesg);
       DEBUG_Log2("errMesg: %ld\n", errMesg);
       VALUE errStr  = rb_sprintf("%"PRIsVALUE, errMesg);
+      assert(errStr);
       DEBUG_Log2("errStr: %ld\n", errStr);
       DEBUG_Log2("%s", StringValueCStr(errStr));
       returnStruct->errMesg = 
@@ -216,6 +232,7 @@ LoadRubyCodeReturn *loadRubyCode(
       LoadedCodeNames *newCodeName = calloc(1, sizeof(LoadedCodeNames));
       assert(newCodeName);
       newCodeName->codeName = strdup(rubyCodeNameCStr);
+      //assert(loadedCodeNames); starts NULL
       HASH_ADD_STR(loadedCodeNames, codeName, newCodeName);
     }
     DEBUG_Log2("result %ld\n", result);
@@ -232,13 +249,27 @@ LoadRubyCodeReturn *loadRubyCode(
   return returnStruct;
 }
 
+
+/// \brief Load the IPyRubyData.rb code for use by evalRubyString
+///
+/// PANICS if IPyRubyData.rb can not be loaded.
+///
+void createAdaptor(void) {
+  GoCreateAdaptor();
+}
+
+/// \brief (Globally) toggles the IPyRuby kernel debugging.
+///
+VALUE IPyRuby_ToggleDebugging(void) {
+  GoToggleIPyRubyDebugging();
+  return Qnil;
+}
+
 /// \brief Has the ruby code named `rubyCodeName` actually been loaded? 
 ///
 int isRubyCodeLoaded(const char *rubyCodeNameCStr) {
   int result = 0;
   
-  pthread_mutex_lock(&rubyMutex);
-
   LoadedCodeNames *foundCodeName = NULL;
   DEBUG_Log3(
     "Looking for [%s] in uthash %p in isRubyCodeLoaded\n",
@@ -250,8 +281,6 @@ int isRubyCodeLoaded(const char *rubyCodeNameCStr) {
     DEBUG_Log2("Found [%s] in isRubyCodeLoaded\n", rubyCodeNameCStr);
     result = 1;
   }
-
-  pthread_mutex_unlock(&rubyMutex);
 
   return result ;
 }
@@ -271,24 +300,24 @@ const char *rubyVersion(void) {
   return RUBY_API_VERSION;
 }
 
-/// \brief Create a new Data object and store it in the IPyKernelStore.
+/// \brief Create a new Data object and store it in the IPyRubyStore.
 ///
-VALUE IPyKernelData_New(VALUE recv) {
-  DEBUG_Log("IPyKernelData_New\n");
-  uint64_t newObjId = GoIPyKernelData_New();
+VALUE IPyRubyData_New(VALUE recv) {
+  DEBUG_Log("IPyRubyData_New\n");
+  uint64_t newObjId = GoIPyRubyData_New();
   DEBUG_Log2("  objId %ld\n", newObjId);
   return  LONG2FIX(newObjId);
 }
 
 /// \brief Adds MIMEType/value pair to the Data map of a Data object.
 ///
-/// Takes the Data object at `objId` from the IPyKernelStore and adds the 
+/// Takes the Data object at `objId` from the IPyRubyStore and adds the 
 /// mimeType/dataValue to the Data's Data map.
 ///
 /// The Object ID is a FIXNUM, the mimeType and dataValue are both Ruby 
 /// Strings. The dataValue may contain embedded null bytes. 
 ///
-VALUE IPyKernelData_AddData(
+VALUE IPyRubyData_AddData(
   VALUE recv,
   VALUE objIdObj,
   VALUE mimeTypeObj,
@@ -300,7 +329,7 @@ VALUE IPyKernelData_AddData(
   char    *dataValue    = "";
   uint64_t dataValueLen = 0;
 
-  DEBUG_Log("IPyKernelData_AddData\n");
+  DEBUG_Log("IPyRubyData_AddData\n");
   // check each argument.... do nothing if they are not valid
   //
   if (FIXNUM_P(objIdObj)) {
@@ -320,20 +349,26 @@ VALUE IPyKernelData_AddData(
   } else return Qnil;
   DEBUG_Log2("  dataValue: %s\n", dataValue);
 
-  GoIPyKernelData_AddData(objId, mimeType, mimeTypeLen, dataValue, dataValueLen);
+  assert(objId);
+  assert(mimeType);
+  assert(mimeTypeLen);
+  assert(dataValue);
+  //dataValueLen will be zero if the original dataValue is nil.
+  //assert(dataValueLen);
+  GoIPyRubyData_AddData(objId, mimeType, mimeTypeLen, dataValue, dataValueLen);
   return Qnil;
 }
 
 /// \brief Appends a traceback error message to the `traceback` entry in 
 /// the Data map of an (error) Data object. 
 ///
-/// Takes the Data object at `objId` from the IPyKernelStore and appends the 
+/// Takes the Data object at `objId` from the IPyRubyStore and appends the 
 /// tracebackValue to the Data's `traceback` entry in the Data map.
 ///
 /// The Object ID is a FIXNUM, the tracebackValue is a Ruby 
 /// Strings.
 ///
-VALUE IPyKernelData_AppendTraceback(
+VALUE IPyRubyData_AppendTraceback(
   VALUE recv,
   VALUE objIdObj,
   VALUE tracebackValueObj
@@ -341,7 +376,7 @@ VALUE IPyKernelData_AppendTraceback(
   uint64_t objId              = 0;
   char    *tracebackValue     = "";
   uint64_t tracebackValueLen  = 0;
-  DEBUG_Log("IPyKernelData_AppendTraceback\n");
+  DEBUG_Log("IPyRubyData_AppendTraceback\n");
   // check each argument.... do nothing if they are not valid
   //
   if (FIXNUM_P(objIdObj)) {
@@ -355,20 +390,23 @@ VALUE IPyKernelData_AppendTraceback(
   } else return Qnil;
   DEBUG_Log2("  tracebackValue: %s\n", tracebackValue);
 
-  GoIPyKernelData_AppendTraceback(objId, tracebackValue, tracebackValueLen);
+  assert(objId);
+  assert(tracebackValue);
+  assert(tracebackValueLen);
+  GoIPyRubyData_AppendTraceback(objId, tracebackValue, tracebackValueLen);
   return Qnil;
 }
 
 /// \brief Adds MIMEType/MetaKey/dataValue triple to the Metadata map of a 
 /// Data object. 
 ///
-/// Takes the Data object at `objId` from the IPyKernelStore and adds the 
+/// Takes the Data object at `objId` from the IPyRubyStore and adds the 
 /// mimeType/metaKey/dataValue to the Data's Metadata map. 
 ///
 /// The Object ID is a FIXNUM, the mimeType, metaKey and dataValue are all 
 /// Ruby Strings. The dataValue may contain embedded null bytes. 
 ///
-VALUE IPyKernelData_AddMetadata(
+VALUE IPyRubyData_AddMetadata(
   VALUE recv,
   VALUE objIdObj,
   VALUE mimeTypeObj,
@@ -383,7 +421,7 @@ VALUE IPyKernelData_AddMetadata(
   char    *dataValue    = "";
   uint64_t dataValueLen = 0;
 
-  DEBUG_Log("IPyKernelData_AddMetadata\n");
+  DEBUG_Log("IPyRubyData_AddMetadata\n");
   // check each argument.... do nothing if they are not valid
   //
   if (FIXNUM_P(objIdObj)) {
@@ -409,7 +447,14 @@ VALUE IPyKernelData_AddMetadata(
   } else return Qnil;
   DEBUG_Log2("  dataValue: %s\n", dataValue);
   
-  GoIPyKernelData_AddMetadata(
+  assert(objId);
+  assert(mimeType);
+  assert(mimeTypeLen);
+  assert(metaKey);
+  assert(metaKeyLen);
+  assert(dataValue);
+  assert(dataValueLen);
+  GoIPyRubyData_AddMetadata(
     objId,
     mimeType,
     mimeTypeLen,
@@ -421,13 +466,15 @@ VALUE IPyKernelData_AddMetadata(
   return Qnil;
 }
 
-/// \brief Initialize the IPyKernelData class inside ruby
+/// \brief Initialize the IPyRubyData class inside ruby
 ///
-void Init_IPyKernelData(void) {
-  rb_define_global_function("IPyKernelData_New",             IPyKernelData_New,             1);
-  rb_define_global_function("IPyKernelData_AddData",         IPyKernelData_AddData,         3);
-  rb_define_global_function("IPyKernelData_AppendTraceback", IPyKernelData_AppendTraceback, 2);
-  rb_define_global_function("IPyKernelData_AddMetadata",     IPyKernelData_AddMetadata,     4);
+void Init_IPyRubyData(void) {
+  // called BY startRuby which already owns the rubyMutex lock..
+  rb_define_global_function("IPyRuby_ToggleDebugging",     IPyRuby_ToggleDebugging,     0);
+  rb_define_global_function("IPyRubyData_New",             IPyRubyData_New,             1);
+  rb_define_global_function("IPyRubyData_AddData",         IPyRubyData_AddData,         3);
+  rb_define_global_function("IPyRubyData_AppendTraceback", IPyRubyData_AppendTraceback, 2);
+  rb_define_global_function("IPyRubyData_AddMetadata",     IPyRubyData_AddMetadata,     4);
 }
 
 /// \brief protectedEvalString actually makes the rb_funcall required to 
@@ -437,6 +484,7 @@ void Init_IPyKernelData(void) {
 /// be cleanly rescued by the ANSI-C code. 
 ///
 static VALUE protectedEvalString(VALUE evalStr) {
+  assert(evalStr)
   DEBUG_Log("before protectedEvalString::rb_funcall\n");
   VALUE result = rb_funcall(
     Qnil,
@@ -451,47 +499,57 @@ static VALUE protectedEvalString(VALUE evalStr) {
 }
 
 /// \brief Evaluate the string aStr in the TOPLEVEL_BINDING and returns 
-/// any result as a Go Data object located in the IPyKernelStore at the 
+/// any result as a Go Data object located in the IPyRubyStore at the 
 /// returned objId. 
 ///
 uint64_t evalRubyString(
   const char* evalNameCStr,
   const char* evalCodeCStr
 ) {
+  assert(rubyRunning);
+  //int codeLoaded = isRubyCodeLoaded("IPyRubyData.rb");
+  assert(isRubyCodeLoaded("IPyRubyData.rb"));
+  assert(evalNameCStr); assert(strlen(evalNameCStr));
+  assert(evalCodeCStr); assert(strlen(evalCodeCStr));
+  
   DEBUG_Log2("Starting evalRubyString on [%s]\n", evalNameCStr);
   pthread_mutex_lock(&rubyMutex);
 
   //VALUE evalName = rb_str_new_cstr(evalNameCStr);
   VALUE evalCode = rb_str_new_cstr(evalCodeCStr);
-    
+  assert(evalCode);
+  
   DEBUG_Log("Before rb_protect\n");
   int loadFailed = 0;
   uint64_t result = 0;
   VALUE rbResult = rb_protect(protectedEvalString, evalCode, &loadFailed);
+  assert(rbResult);
   if (RB_FIXNUM_P(rbResult)) { result = FIX2LONG(rbResult); }
   DEBUG_Log2("After rb_protect   rbResult: %ld\n", rbResult);
   DEBUG_Log2("After rb_protect     result: %ld\n", result);
   DEBUG_Log2("After rb_protect loadFailed: %d\n", loadFailed);  
   if (loadFailed) {
-    GoIPyKernelData_Delete(result);
+    GoIPyRubyData_Delete(result);
 
     VALUE errMesg = rb_errinfo();
+    assert(errMesg);
     VALUE errStr  = rb_sprintf("%"PRIsVALUE, errMesg);
-
-    result = GoIPyKernelData_New();
-    GoIPyKernelData_AddData(result,
+    assert(errStr);
+    
+    result = GoIPyRubyData_New();
+    assert(result);
+    GoIPyRubyData_AddData(result,
       "ename", strlen("ename"), "ERROR", strlen("ERROR"));
-    GoIPyKernelData_AddData(result,
+    GoIPyRubyData_AddData(result,
       "evalue", strlen("evalue"), StringValuePtr(errStr), RSTRING_LEN(errStr));
-    char* tracebackMsg = "protectedLoadRubyCode FAILED";
-    GoIPyKernelData_AppendTraceback(result,
+    char* tracebackMsg = "protectedEvalString FAILED";
+    GoIPyRubyData_AppendTraceback(result,
       tracebackMsg, strlen(tracebackMsg));
-    GoIPyKernelData_AddData(result,
-      "status", strlen("status"), "error", strlen("status"));
+    GoIPyRubyData_AddData(result,
+      "status", strlen("status"), "error", strlen("error"));
   }
   
   pthread_mutex_unlock(&rubyMutex);
   DEBUG_Log2("Finished evalRubyString on [%s]\n", evalNameCStr);
   return result;
 }
-
