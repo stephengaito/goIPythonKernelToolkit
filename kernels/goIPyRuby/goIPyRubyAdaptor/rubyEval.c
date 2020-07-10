@@ -151,8 +151,7 @@ static VALUE protectedLoadRubyCode(VALUE args) {
     rubyCodeStr,
     Qnil,
     rubyCodeName,
-    LONG2FIX(0),
-    0
+    LONG2FIX(0)
   );
   // This will NOT be called IF the eval raises an exception...
   DEBUG_Log("after protectedLoadRubyCode::rb_funcall\n");
@@ -260,7 +259,7 @@ void createAdaptor(void) {
 
 /// \brief (Globally) toggles the IPyRuby kernel debugging.
 ///
-VALUE IPyRuby_ToggleDebugging(void) {
+VALUE IPyRuby_ToggleDebugging(VALUE recv) {
   GoToggleIPyRubyDebugging();
   return Qnil;
 }
@@ -471,7 +470,7 @@ VALUE IPyRubyData_AddMetadata(
 void Init_IPyRubyData(void) {
   // called BY startRuby which already owns the rubyMutex lock..
   rb_define_global_function("IPyRuby_ToggleDebugging",     IPyRuby_ToggleDebugging,     0);
-  rb_define_global_function("IPyRubyData_New",             IPyRubyData_New,             1);
+  rb_define_global_function("IPyRubyData_New",             IPyRubyData_New,             0);
   rb_define_global_function("IPyRubyData_AddData",         IPyRubyData_AddData,         3);
   rb_define_global_function("IPyRubyData_AppendTraceback", IPyRubyData_AppendTraceback, 2);
   rb_define_global_function("IPyRubyData_AddMetadata",     IPyRubyData_AddMetadata,     4);
@@ -490,8 +489,7 @@ static VALUE protectedEvalString(VALUE evalStr) {
     Qnil,
     rb_intern("IPyRubyEval"),
     1,
-    evalStr,
-    0
+    evalStr
   );
   // This will NOT be called IF the IPyRubyEval raises an exception...
   DEBUG_Log("after protectedEvalString::rb_funcall\n");
